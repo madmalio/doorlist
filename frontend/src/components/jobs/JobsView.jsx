@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { CreateJob, DeleteJob, GetJobsPage, GetOverlayCategories, LoadDoorStyles, UpdateJob } from '../../../wailsjs/go/main/App';
+import { CreateJob, DeleteJob, GetDrawerFrontCategories, GetJobsPage, GetOverlayCategories, LoadDoorStyles, UpdateJob } from '../../../wailsjs/go/main/App';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { ConfirmModal } from '../ui/ConfirmModal';
@@ -13,6 +13,7 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
   const [jobs, setJobs] = useState([]);
   const [doorStyles, setDoorStyles] = useState([]);
   const [overlayCategories, setOverlayCategories] = useState([]);
+  const [drawerFrontCategories, setDrawerFrontCategories] = useState([]);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -48,6 +49,17 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
     };
 
     void fetchOverlayCategories();
+
+    const fetchDrawerFrontCategories = async () => {
+      try {
+        const categories = await GetDrawerFrontCategories();
+        setDrawerFrontCategories(categories || []);
+      } catch (error) {
+        showToast('Failed to load drawer front categories', 'error');
+      }
+    };
+
+    void fetchDrawerFrontCategories();
   }, [showToast]);
 
   useEffect(() => {
@@ -274,6 +286,7 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
           job={editingJob}
           doorStyles={doorStyles}
           overlayCategories={overlayCategories}
+          drawerFrontCategories={drawerFrontCategories}
           onSubmit={handleSubmit}
           onCancel={closeModal}
         />

@@ -72,51 +72,54 @@ func (a *App) startup(ctx context.Context) {
 }
 
 type Job struct {
-	ID                       string      `json:"id"`
-	CustomerName             string      `json:"customerName"`
-	Name                     string      `json:"name"`
-	DefaultStyleID           string      `json:"defaultStyleId"`
-	DefaultOverlayCategoryID string      `json:"defaultOverlayCategoryId"`
-	DoorType                 string      `json:"doorType"`
-	ButtGap                  float64     `json:"buttGap"`
-	UseCustomOverlay         bool        `json:"useCustomOverlay"`
-	OverlayLeft              float64     `json:"overlayLeft"`
-	OverlayRight             float64     `json:"overlayRight"`
-	OverlayTop               float64     `json:"overlayTop"`
-	OverlayBottom            float64     `json:"overlayBottom"`
-	DefaultOverlay           float64     `json:"defaultOverlay"`
-	CreatedDate              time.Time   `json:"createdDate"`
-	Doors                    []DoorEntry `json:"doors"`
+	ID                           string      `json:"id"`
+	CustomerName                 string      `json:"customerName"`
+	Name                         string      `json:"name"`
+	DefaultStyleID               string      `json:"defaultStyleId"`
+	DefaultOverlayCategoryID     string      `json:"defaultOverlayCategoryId"`
+	DefaultDrawerFrontCategoryID string      `json:"defaultDrawerFrontCategoryId"`
+	DoorType                     string      `json:"doorType"`
+	ButtGap                      float64     `json:"buttGap"`
+	UseCustomOverlay             bool        `json:"useCustomOverlay"`
+	OverlayLeft                  float64     `json:"overlayLeft"`
+	OverlayRight                 float64     `json:"overlayRight"`
+	OverlayTop                   float64     `json:"overlayTop"`
+	OverlayBottom                float64     `json:"overlayBottom"`
+	DefaultOverlay               float64     `json:"defaultOverlay"`
+	CreatedDate                  time.Time   `json:"createdDate"`
+	Doors                        []DoorEntry `json:"doors"`
 }
 
 type CreateJobRequest struct {
-	CustomerName             string  `json:"customerName"`
-	Project                  string  `json:"project"`
-	DefaultStyleID           string  `json:"defaultStyleId"`
-	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
-	DoorType                 string  `json:"doorType"`
-	ButtGap                  float64 `json:"buttGap"`
-	UseCustomOverlay         bool    `json:"useCustomOverlay"`
-	OverlayLeft              float64 `json:"overlayLeft"`
-	OverlayRight             float64 `json:"overlayRight"`
-	OverlayTop               float64 `json:"overlayTop"`
-	OverlayBottom            float64 `json:"overlayBottom"`
-	DefaultOverlay           float64 `json:"defaultOverlay"`
+	CustomerName                 string  `json:"customerName"`
+	Project                      string  `json:"project"`
+	DefaultStyleID               string  `json:"defaultStyleId"`
+	DefaultOverlayCategoryID     string  `json:"defaultOverlayCategoryId"`
+	DefaultDrawerFrontCategoryID string  `json:"defaultDrawerFrontCategoryId"`
+	DoorType                     string  `json:"doorType"`
+	ButtGap                      float64 `json:"buttGap"`
+	UseCustomOverlay             bool    `json:"useCustomOverlay"`
+	OverlayLeft                  float64 `json:"overlayLeft"`
+	OverlayRight                 float64 `json:"overlayRight"`
+	OverlayTop                   float64 `json:"overlayTop"`
+	OverlayBottom                float64 `json:"overlayBottom"`
+	DefaultOverlay               float64 `json:"defaultOverlay"`
 }
 
 type UpdateJobRequest struct {
-	CustomerName             string  `json:"customerName"`
-	Project                  string  `json:"project"`
-	DefaultStyleID           string  `json:"defaultStyleId"`
-	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
-	DoorType                 string  `json:"doorType"`
-	ButtGap                  float64 `json:"buttGap"`
-	UseCustomOverlay         bool    `json:"useCustomOverlay"`
-	OverlayLeft              float64 `json:"overlayLeft"`
-	OverlayRight             float64 `json:"overlayRight"`
-	OverlayTop               float64 `json:"overlayTop"`
-	OverlayBottom            float64 `json:"overlayBottom"`
-	DefaultOverlay           float64 `json:"defaultOverlay"`
+	CustomerName                 string  `json:"customerName"`
+	Project                      string  `json:"project"`
+	DefaultStyleID               string  `json:"defaultStyleId"`
+	DefaultOverlayCategoryID     string  `json:"defaultOverlayCategoryId"`
+	DefaultDrawerFrontCategoryID string  `json:"defaultDrawerFrontCategoryId"`
+	DoorType                     string  `json:"doorType"`
+	ButtGap                      float64 `json:"buttGap"`
+	UseCustomOverlay             bool    `json:"useCustomOverlay"`
+	OverlayLeft                  float64 `json:"overlayLeft"`
+	OverlayRight                 float64 `json:"overlayRight"`
+	OverlayTop                   float64 `json:"overlayTop"`
+	OverlayBottom                float64 `json:"overlayBottom"`
+	DefaultOverlay               float64 `json:"defaultOverlay"`
 }
 
 type JobPageRequest struct {
@@ -306,21 +309,22 @@ func (a *App) CreateJob(req CreateJobRequest) (Job, error) {
 	}
 
 	job := Job{
-		ID:                       uuid.NewString(),
-		CustomerName:             strings.TrimSpace(req.CustomerName),
-		Name:                     strings.TrimSpace(req.Project),
-		DefaultStyleID:           strings.TrimSpace(req.DefaultStyleID),
-		DefaultOverlayCategoryID: strings.TrimSpace(req.DefaultOverlayCategoryID),
-		DoorType:                 normalizeDoorType(req.DoorType),
-		ButtGap:                  req.ButtGap,
-		UseCustomOverlay:         req.UseCustomOverlay,
-		OverlayLeft:              req.OverlayLeft,
-		OverlayRight:             req.OverlayRight,
-		OverlayTop:               req.OverlayTop,
-		OverlayBottom:            req.OverlayBottom,
-		DefaultOverlay:           req.DefaultOverlay,
-		CreatedDate:              time.Now().UTC(),
-		Doors:                    []DoorEntry{},
+		ID:                           uuid.NewString(),
+		CustomerName:                 strings.TrimSpace(req.CustomerName),
+		Name:                         strings.TrimSpace(req.Project),
+		DefaultStyleID:               strings.TrimSpace(req.DefaultStyleID),
+		DefaultOverlayCategoryID:     strings.TrimSpace(req.DefaultOverlayCategoryID),
+		DefaultDrawerFrontCategoryID: strings.TrimSpace(req.DefaultDrawerFrontCategoryID),
+		DoorType:                     normalizeDoorType(req.DoorType),
+		ButtGap:                      req.ButtGap,
+		UseCustomOverlay:             req.UseCustomOverlay,
+		OverlayLeft:                  req.OverlayLeft,
+		OverlayRight:                 req.OverlayRight,
+		OverlayTop:                   req.OverlayTop,
+		OverlayBottom:                req.OverlayBottom,
+		DefaultOverlay:               req.DefaultOverlay,
+		CreatedDate:                  time.Now().UTC(),
+		Doors:                        []DoorEntry{},
 	}
 
 	if job.ButtGap <= 0 {
@@ -357,6 +361,7 @@ func (a *App) UpdateJob(id string, req UpdateJobRequest) (Job, error) {
 			jobs[i].Name = strings.TrimSpace(req.Project)
 			jobs[i].DefaultStyleID = strings.TrimSpace(req.DefaultStyleID)
 			jobs[i].DefaultOverlayCategoryID = strings.TrimSpace(req.DefaultOverlayCategoryID)
+			jobs[i].DefaultDrawerFrontCategoryID = strings.TrimSpace(req.DefaultDrawerFrontCategoryID)
 			jobs[i].DoorType = normalizeDoorType(req.DoorType)
 			jobs[i].ButtGap = req.ButtGap
 			if jobs[i].ButtGap <= 0 {
@@ -802,6 +807,7 @@ func (a *App) SaveJob(job Job) (Job, error) {
 	job.Name = strings.TrimSpace(job.Name)
 	job.DefaultStyleID = strings.TrimSpace(job.DefaultStyleID)
 	job.DefaultOverlayCategoryID = strings.TrimSpace(job.DefaultOverlayCategoryID)
+	job.DefaultDrawerFrontCategoryID = strings.TrimSpace(job.DefaultDrawerFrontCategoryID)
 	job.DoorType = normalizeDoorType(job.DoorType)
 	if job.ButtGap <= 0 {
 		job.ButtGap = 0.125

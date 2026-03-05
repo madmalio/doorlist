@@ -336,7 +336,7 @@ export function JobDetailView({ jobId, onBack }) {
       return null;
     }
 
-    const selectedByID = drawerFrontCategories.find((category) => category.id === job?.defaultOverlayCategoryId);
+    const selectedByID = drawerFrontCategories.find((category) => category.id === job?.defaultDrawerFrontCategoryId);
     if (selectedByID) {
       return selectedByID;
     }
@@ -350,7 +350,7 @@ export function JobDetailView({ jobId, onBack }) {
     }
 
     return drawerFrontCategories.find((category) => (category.items || []).length > 0) || drawerFrontCategories[0] || null;
-  }, [drawerFrontCategories, job?.defaultOverlayCategoryId, selectedOverlayCategory?.name]);
+  }, [drawerFrontCategories, job?.defaultDrawerFrontCategoryId, selectedOverlayCategory?.name]);
   const drawerFrontItems = useMemo(() => (selectedDrawerFrontCategory?.items || []), [selectedDrawerFrontCategory]);
   const frameItems = useMemo(() => (cutList?.items || []).filter((item) => item.part === 'Stile' || item.part === 'Rail'), [cutList]);
   const panelItems = useMemo(() => (cutList?.items || []).filter((item) => item.part === 'Panel'), [cutList]);

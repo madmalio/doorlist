@@ -121,6 +121,7 @@ export namespace main {
 	    project: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
+	    defaultDrawerFrontCategoryId: string;
 	    doorType: string;
 	    buttGap: number;
 	    useCustomOverlay: boolean;
@@ -140,6 +141,7 @@ export namespace main {
 	        this.project = source["project"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
+	        this.defaultDrawerFrontCategoryId = source["defaultDrawerFrontCategoryId"];
 	        this.doorType = source["doorType"];
 	        this.buttGap = source["buttGap"];
 	        this.useCustomOverlay = source["useCustomOverlay"];
@@ -328,6 +330,7 @@ export namespace main {
 	    name: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
+	    defaultDrawerFrontCategoryId: string;
 	    doorType: string;
 	    buttGap: number;
 	    useCustomOverlay: boolean;
@@ -351,6 +354,7 @@ export namespace main {
 	        this.name = source["name"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
+	        this.defaultDrawerFrontCategoryId = source["defaultDrawerFrontCategoryId"];
 	        this.doorType = source["doorType"];
 	        this.buttGap = source["buttGap"];
 	        this.useCustomOverlay = source["useCustomOverlay"];
@@ -441,6 +445,7 @@ export namespace main {
 	    project: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
+	    defaultDrawerFrontCategoryId: string;
 	    doorType: string;
 	    buttGap: number;
 	    useCustomOverlay: boolean;
@@ -460,6 +465,7 @@ export namespace main {
 	        this.project = source["project"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
+	        this.defaultDrawerFrontCategoryId = source["defaultDrawerFrontCategoryId"];
 	        this.doorType = source["doorType"];
 	        this.buttGap = source["buttGap"];
 	        this.useCustomOverlay = source["useCustomOverlay"];
