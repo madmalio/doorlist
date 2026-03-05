@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { CreateDoorStyle, DeleteDoorStyle, LoadDoorStyles, UpdateDoorStyle } from '../../../wailsjs/go/main/App';
+import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CreateDoorStyle, DeleteDoorStyle, LoadDoorStyles, SaveDoorStyleOrder, UpdateDoorStyle } from '../../../wailsjs/go/main/App';
 import { CatalogForm } from './CatalogForm';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
@@ -16,7 +16,26 @@ export function CatalogView() {
   const [editingStyle, setEditingStyle] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [styleToDelete, setStyleToDelete] = useState(null);
+  const [draggedStyleID, setDraggedStyleID] = useState('');
+  const [dragOverStyleID, setDragOverStyleID] = useState('');
   const { showToast } = useToast();
+
+  const moveStyle = (list, sourceID, targetID) => {
+    if (!sourceID || !targetID || sourceID === targetID) {
+      return list;
+    }
+
+    const sourceIndex = list.findIndex((style) => style.id === sourceID);
+    const targetIndex = list.findIndex((style) => style.id === targetID);
+    if (sourceIndex < 0 || targetIndex < 0) {
+      return list;
+    }
+
+    const next = [...list];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    return next;
+  };
 
   const loadStyles = async () => {
     setIsLoading(true);
@@ -90,6 +109,54 @@ export function CatalogView() {
     }
   };
 
+  const persistStyleOrder = async (nextStyles) => {
+    try {
+      const saved = await SaveDoorStyleOrder(nextStyles.map((style) => style.id));
+      setStyles(saved || nextStyles);
+      showToast('Door style order saved', 'success');
+    } catch (error) {
+      await loadStyles();
+      showToast('Failed to save style order', 'error');
+    }
+  };
+
+  const onRowDragStart = (event, styleID) => {
+    setDraggedStyleID(styleID);
+    setDragOverStyleID('');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', styleID);
+  };
+
+  const onRowDragOver = (event, styleID) => {
+    event.preventDefault();
+    if (draggedStyleID && draggedStyleID !== styleID) {
+      setDragOverStyleID(styleID);
+    }
+  };
+
+  const onRowDrop = async (event, styleID) => {
+    event.preventDefault();
+    const sourceID = event.dataTransfer.getData('text/plain') || draggedStyleID;
+    setDragOverStyleID('');
+    setDraggedStyleID('');
+    if (!sourceID || sourceID === styleID) {
+      return;
+    }
+
+    const reordered = moveStyle(styles, sourceID, styleID);
+    if (reordered === styles) {
+      return;
+    }
+
+    setStyles(reordered);
+    await persistStyleOrder(reordered);
+  };
+
+  const onRowDragEnd = () => {
+    setDragOverStyleID('');
+    setDraggedStyleID('');
+  };
+
   if (isLoading) {
     return <div className="flex h-64 items-center justify-center text-zinc-500 dark:text-zinc-400">Loading door styles...</div>;
   }
@@ -119,6 +186,7 @@ export function CatalogView() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+                  <th className="w-10 px-2 py-3" />
                   <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Name</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Stile</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Rail</th>
@@ -130,7 +198,20 @@ export function CatalogView() {
               </thead>
               <tbody>
                 {styles.map((style) => (
-                  <tr key={style.id} className="border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800">
+                  <tr
+                    key={style.id}
+                    draggable
+                    onDragStart={(event) => onRowDragStart(event, style.id)}
+                    onDragOver={(event) => onRowDragOver(event, style.id)}
+                    onDrop={(event) => void onRowDrop(event, style.id)}
+                    onDragEnd={onRowDragEnd}
+                    className={`border-b border-zinc-200 dark:border-zinc-800 ${draggedStyleID === style.id ? 'opacity-50' : ''} ${dragOverStyleID === style.id ? 'bg-zinc-200 dark:bg-zinc-700' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                  >
+                    <td className="px-2 py-3 text-zinc-400 dark:text-zinc-500">
+                      <div className="flex items-center justify-center" title="Drag to reorder">
+                        <GripVertical size={14} />
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       <span>{style.name}</span>
                       <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.isSlab ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'}`}>

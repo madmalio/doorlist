@@ -12,8 +12,6 @@ export function DeleteJob(arg1:string):Promise<void>;
 
 export function GenerateCutList(arg1:string):Promise<main.CutListResponse>;
 
-export function GetDrawerFrontCategories():Promise<Array<main.OverlayCategory>>;
-
 export function GetJob(arg1:string):Promise<main.Job>;
 
 export function GetJobsPage(arg1:main.JobPageRequest):Promise<main.JobPageResponse>;
@@ -28,7 +26,7 @@ export function LoadDoorStyles():Promise<Array<main.DoorStyle>>;
 
 export function LoadJobs():Promise<Array<main.Job>>;
 
-export function SaveDrawerFrontCategories(arg1:Array<main.OverlayCategory>):Promise<Array<main.OverlayCategory>>;
+export function SaveDoorStyleOrder(arg1:Array<string>):Promise<Array<main.DoorStyle>>;
 
 export function SaveJob(arg1:main.Job):Promise<main.Job>;
 

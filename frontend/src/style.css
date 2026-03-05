@@ -104,7 +104,15 @@ body {
   .print-cutlist-section {
     page-break-inside: avoid;
     break-inside: avoid;
-    margin-bottom: 16px;
+    page-break-after: always;
+    break-after: page;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .print-cutlist-section:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
 
   table {
@@ -116,5 +124,12 @@ body {
   td {
     border: 1px solid #d4d4d8;
     color: #111111 !important;
+  }
+
+  .print-cutlist-table th,
+  .print-cutlist-table td {
+    padding: 4px 8px !important;
+    line-height: 1.1;
+    font-size: 12px;
   }
 }

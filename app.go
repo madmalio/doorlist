@@ -61,7 +61,7 @@ func (a *App) startup(ctx context.Context) {
 
 	a.settingsPath = filepath.Join(dataDir, "settings.json")
 	if _, statErr := os.Stat(a.settingsPath); errors.Is(statErr, os.ErrNotExist) {
-		payload, _ := json.MarshalIndent(AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories(), DrawerFrontCategories: defaultDrawerFrontCategories()}, "", "  ")
+		payload, _ := json.MarshalIndent(AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}, "", "  ")
 		payload = append(payload, '\n')
 		_ = os.WriteFile(a.settingsPath, payload, 0o644)
 	}
@@ -72,54 +72,51 @@ func (a *App) startup(ctx context.Context) {
 }
 
 type Job struct {
-	ID                           string      `json:"id"`
-	CustomerName                 string      `json:"customerName"`
-	Name                         string      `json:"name"`
-	DefaultStyleID               string      `json:"defaultStyleId"`
-	DefaultOverlayCategoryID     string      `json:"defaultOverlayCategoryId"`
-	DefaultDrawerFrontCategoryID string      `json:"defaultDrawerFrontCategoryId"`
-	DoorType                     string      `json:"doorType"`
-	ButtGap                      float64     `json:"buttGap"`
-	UseCustomOverlay             bool        `json:"useCustomOverlay"`
-	OverlayLeft                  float64     `json:"overlayLeft"`
-	OverlayRight                 float64     `json:"overlayRight"`
-	OverlayTop                   float64     `json:"overlayTop"`
-	OverlayBottom                float64     `json:"overlayBottom"`
-	DefaultOverlay               float64     `json:"defaultOverlay"`
-	CreatedDate                  time.Time   `json:"createdDate"`
-	Doors                        []DoorEntry `json:"doors"`
+	ID                       string      `json:"id"`
+	CustomerName             string      `json:"customerName"`
+	Name                     string      `json:"name"`
+	DefaultStyleID           string      `json:"defaultStyleId"`
+	DefaultOverlayCategoryID string      `json:"defaultOverlayCategoryId"`
+	DoorType                 string      `json:"doorType"`
+	ButtGap                  float64     `json:"buttGap"`
+	UseCustomOverlay         bool        `json:"useCustomOverlay"`
+	OverlayLeft              float64     `json:"overlayLeft"`
+	OverlayRight             float64     `json:"overlayRight"`
+	OverlayTop               float64     `json:"overlayTop"`
+	OverlayBottom            float64     `json:"overlayBottom"`
+	DefaultOverlay           float64     `json:"defaultOverlay"`
+	CreatedDate              time.Time   `json:"createdDate"`
+	Doors                    []DoorEntry `json:"doors"`
 }
 
 type CreateJobRequest struct {
-	CustomerName                 string  `json:"customerName"`
-	Project                      string  `json:"project"`
-	DefaultStyleID               string  `json:"defaultStyleId"`
-	DefaultOverlayCategoryID     string  `json:"defaultOverlayCategoryId"`
-	DefaultDrawerFrontCategoryID string  `json:"defaultDrawerFrontCategoryId"`
-	DoorType                     string  `json:"doorType"`
-	ButtGap                      float64 `json:"buttGap"`
-	UseCustomOverlay             bool    `json:"useCustomOverlay"`
-	OverlayLeft                  float64 `json:"overlayLeft"`
-	OverlayRight                 float64 `json:"overlayRight"`
-	OverlayTop                   float64 `json:"overlayTop"`
-	OverlayBottom                float64 `json:"overlayBottom"`
-	DefaultOverlay               float64 `json:"defaultOverlay"`
+	CustomerName             string  `json:"customerName"`
+	Project                  string  `json:"project"`
+	DefaultStyleID           string  `json:"defaultStyleId"`
+	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
+	DoorType                 string  `json:"doorType"`
+	ButtGap                  float64 `json:"buttGap"`
+	UseCustomOverlay         bool    `json:"useCustomOverlay"`
+	OverlayLeft              float64 `json:"overlayLeft"`
+	OverlayRight             float64 `json:"overlayRight"`
+	OverlayTop               float64 `json:"overlayTop"`
+	OverlayBottom            float64 `json:"overlayBottom"`
+	DefaultOverlay           float64 `json:"defaultOverlay"`
 }
 
 type UpdateJobRequest struct {
-	CustomerName                 string  `json:"customerName"`
-	Project                      string  `json:"project"`
-	DefaultStyleID               string  `json:"defaultStyleId"`
-	DefaultOverlayCategoryID     string  `json:"defaultOverlayCategoryId"`
-	DefaultDrawerFrontCategoryID string  `json:"defaultDrawerFrontCategoryId"`
-	DoorType                     string  `json:"doorType"`
-	ButtGap                      float64 `json:"buttGap"`
-	UseCustomOverlay             bool    `json:"useCustomOverlay"`
-	OverlayLeft                  float64 `json:"overlayLeft"`
-	OverlayRight                 float64 `json:"overlayRight"`
-	OverlayTop                   float64 `json:"overlayTop"`
-	OverlayBottom                float64 `json:"overlayBottom"`
-	DefaultOverlay               float64 `json:"defaultOverlay"`
+	CustomerName             string  `json:"customerName"`
+	Project                  string  `json:"project"`
+	DefaultStyleID           string  `json:"defaultStyleId"`
+	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
+	DoorType                 string  `json:"doorType"`
+	ButtGap                  float64 `json:"buttGap"`
+	UseCustomOverlay         bool    `json:"useCustomOverlay"`
+	OverlayLeft              float64 `json:"overlayLeft"`
+	OverlayRight             float64 `json:"overlayRight"`
+	OverlayTop               float64 `json:"overlayTop"`
+	OverlayBottom            float64 `json:"overlayBottom"`
+	DefaultOverlay           float64 `json:"defaultOverlay"`
 }
 
 type JobPageRequest struct {
@@ -136,11 +133,10 @@ type JobPageResponse struct {
 }
 
 type AppSettings struct {
-	Theme                 string            `json:"theme"`
-	OverlayCategories     []OverlayCategory `json:"overlayCategories"`
-	DrawerFrontCategories []OverlayCategory `json:"drawerFrontCategories"`
-	OverlayPresets        []OverlayPreset   `json:"overlayPresets,omitempty"`
-	SeededDefaultSlab     bool              `json:"seededDefaultSlab,omitempty"`
+	Theme             string            `json:"theme"`
+	OverlayCategories []OverlayCategory `json:"overlayCategories"`
+	OverlayPresets    []OverlayPreset   `json:"overlayPresets,omitempty"`
+	SeededDefaultSlab bool              `json:"seededDefaultSlab,omitempty"`
 }
 
 type OverlayPreset struct {
@@ -153,9 +149,11 @@ type OverlayPreset struct {
 }
 
 type OverlayCategory struct {
-	ID    string               `json:"id"`
-	Name  string               `json:"name"`
-	Items []OverlaySubcategory `json:"items"`
+	ID               string               `json:"id"`
+	Name             string               `json:"name"`
+	Items            []OverlaySubcategory `json:"items,omitempty"`
+	DoorItems        []OverlaySubcategory `json:"doorItems,omitempty"`
+	DrawerFrontItems []OverlaySubcategory `json:"drawerFrontItems,omitempty"`
 }
 
 type OverlaySubcategory struct {
@@ -183,6 +181,7 @@ type DoorStyle struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
 	IsSlab         bool    `json:"isSlab"`
+	Order          int     `json:"order,omitempty"`
 	StileWidth     float64 `json:"stileWidth"`
 	RailWidth      float64 `json:"railWidth"`
 	TenonLength    float64 `json:"tenonLength"`
@@ -309,22 +308,21 @@ func (a *App) CreateJob(req CreateJobRequest) (Job, error) {
 	}
 
 	job := Job{
-		ID:                           uuid.NewString(),
-		CustomerName:                 strings.TrimSpace(req.CustomerName),
-		Name:                         strings.TrimSpace(req.Project),
-		DefaultStyleID:               strings.TrimSpace(req.DefaultStyleID),
-		DefaultOverlayCategoryID:     strings.TrimSpace(req.DefaultOverlayCategoryID),
-		DefaultDrawerFrontCategoryID: strings.TrimSpace(req.DefaultDrawerFrontCategoryID),
-		DoorType:                     normalizeDoorType(req.DoorType),
-		ButtGap:                      req.ButtGap,
-		UseCustomOverlay:             req.UseCustomOverlay,
-		OverlayLeft:                  req.OverlayLeft,
-		OverlayRight:                 req.OverlayRight,
-		OverlayTop:                   req.OverlayTop,
-		OverlayBottom:                req.OverlayBottom,
-		DefaultOverlay:               req.DefaultOverlay,
-		CreatedDate:                  time.Now().UTC(),
-		Doors:                        []DoorEntry{},
+		ID:                       uuid.NewString(),
+		CustomerName:             strings.TrimSpace(req.CustomerName),
+		Name:                     strings.TrimSpace(req.Project),
+		DefaultStyleID:           strings.TrimSpace(req.DefaultStyleID),
+		DefaultOverlayCategoryID: strings.TrimSpace(req.DefaultOverlayCategoryID),
+		DoorType:                 normalizeDoorType(req.DoorType),
+		ButtGap:                  req.ButtGap,
+		UseCustomOverlay:         req.UseCustomOverlay,
+		OverlayLeft:              req.OverlayLeft,
+		OverlayRight:             req.OverlayRight,
+		OverlayTop:               req.OverlayTop,
+		OverlayBottom:            req.OverlayBottom,
+		DefaultOverlay:           req.DefaultOverlay,
+		CreatedDate:              time.Now().UTC(),
+		Doors:                    []DoorEntry{},
 	}
 
 	if job.ButtGap <= 0 {
@@ -361,7 +359,6 @@ func (a *App) UpdateJob(id string, req UpdateJobRequest) (Job, error) {
 			jobs[i].Name = strings.TrimSpace(req.Project)
 			jobs[i].DefaultStyleID = strings.TrimSpace(req.DefaultStyleID)
 			jobs[i].DefaultOverlayCategoryID = strings.TrimSpace(req.DefaultOverlayCategoryID)
-			jobs[i].DefaultDrawerFrontCategoryID = strings.TrimSpace(req.DefaultDrawerFrontCategoryID)
 			jobs[i].DoorType = normalizeDoorType(req.DoorType)
 			jobs[i].ButtGap = req.ButtGap
 			if jobs[i].ButtGap <= 0 {
@@ -497,7 +494,7 @@ func (a *App) GetOverlayCategories() ([]OverlayCategory, error) {
 		return nil, err
 	}
 
-	return settings.OverlayCategories, nil
+	return normalizeOverlayCategoryList(settings.OverlayCategories), nil
 }
 
 func (a *App) SaveOverlayCategories(categories []OverlayCategory) ([]OverlayCategory, error) {
@@ -509,125 +506,13 @@ func (a *App) SaveOverlayCategories(categories []OverlayCategory) ([]OverlayCate
 		return nil, err
 	}
 
-	normalized := make([]OverlayCategory, 0, len(categories))
-	for _, category := range categories {
-		name := strings.TrimSpace(category.Name)
-		if name == "" {
-			continue
-		}
-
-		categoryID := strings.TrimSpace(category.ID)
-		if categoryID == "" {
-			categoryID = uuid.NewString()
-		}
-
-		items := make([]OverlaySubcategory, 0, len(category.Items))
-		for _, item := range category.Items {
-			itemName := strings.TrimSpace(item.Name)
-			if itemName == "" {
-				continue
-			}
-
-			itemID := strings.TrimSpace(item.ID)
-			if itemID == "" {
-				itemID = uuid.NewString()
-			}
-
-			items = append(items, OverlaySubcategory{
-				ID:     itemID,
-				Name:   itemName,
-				Left:   item.Left,
-				Right:  item.Right,
-				Top:    item.Top,
-				Bottom: item.Bottom,
-			})
-		}
-
-		normalized = append(normalized, OverlayCategory{
-			ID:    categoryID,
-			Name:  name,
-			Items: items,
-		})
-	}
-
-	settings.OverlayCategories = normalized
+	settings.OverlayCategories = normalizeOverlayCategoryList(categories)
 
 	if err := a.saveSettingsUnsafe(settings); err != nil {
 		return nil, err
 	}
 
 	return settings.OverlayCategories, nil
-}
-
-func (a *App) GetDrawerFrontCategories() ([]OverlayCategory, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	settings, err := a.loadSettingsUnsafe()
-	if err != nil {
-		return nil, err
-	}
-
-	return settings.DrawerFrontCategories, nil
-}
-
-func (a *App) SaveDrawerFrontCategories(categories []OverlayCategory) ([]OverlayCategory, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	settings, err := a.loadSettingsUnsafe()
-	if err != nil {
-		return nil, err
-	}
-
-	normalized := make([]OverlayCategory, 0, len(categories))
-	for _, category := range categories {
-		name := strings.TrimSpace(category.Name)
-		if name == "" {
-			continue
-		}
-
-		categoryID := strings.TrimSpace(category.ID)
-		if categoryID == "" {
-			categoryID = uuid.NewString()
-		}
-
-		items := make([]OverlaySubcategory, 0, len(category.Items))
-		for _, item := range category.Items {
-			itemName := strings.TrimSpace(item.Name)
-			if itemName == "" {
-				continue
-			}
-
-			itemID := strings.TrimSpace(item.ID)
-			if itemID == "" {
-				itemID = uuid.NewString()
-			}
-
-			items = append(items, OverlaySubcategory{
-				ID:     itemID,
-				Name:   itemName,
-				Left:   item.Left,
-				Right:  item.Right,
-				Top:    item.Top,
-				Bottom: item.Bottom,
-			})
-		}
-
-		normalized = append(normalized, OverlayCategory{
-			ID:    categoryID,
-			Name:  name,
-			Items: items,
-		})
-	}
-
-	settings.DrawerFrontCategories = normalized
-
-	if err := a.saveSettingsUnsafe(settings); err != nil {
-		return nil, err
-	}
-
-	return settings.DrawerFrontCategories, nil
 }
 
 func (a *App) SearchGlobal(query string) ([]GlobalSearchResult, error) {
@@ -686,9 +571,7 @@ func (a *App) LoadDoorStyles() ([]DoorStyle, error) {
 		return nil, err
 	}
 
-	sort.Slice(styles, func(i, j int) bool {
-		return strings.ToLower(styles[i].Name) < strings.ToLower(styles[j].Name)
-	})
+	sortDoorStyles(styles)
 
 	return styles, nil
 }
@@ -710,6 +593,7 @@ func (a *App) CreateDoorStyle(req DoorStyleRequest) (DoorStyle, error) {
 		ID:             uuid.NewString(),
 		Name:           strings.TrimSpace(req.Name),
 		IsSlab:         false,
+		Order:          nextDoorStyleOrder(styles),
 		StileWidth:     req.StileWidth,
 		RailWidth:      req.RailWidth,
 		TenonLength:    req.TenonLength,
@@ -723,6 +607,47 @@ func (a *App) CreateDoorStyle(req DoorStyleRequest) (DoorStyle, error) {
 	}
 
 	return style, nil
+}
+
+func (a *App) SaveDoorStyleOrder(styleIDs []string) ([]DoorStyle, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	styles, err := a.loadDoorStylesUnsafe()
+	if err != nil {
+		return nil, err
+	}
+
+	positionByID := make(map[string]int, len(styleIDs))
+	position := 1
+	for _, rawID := range styleIDs {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			continue
+		}
+		if _, exists := positionByID[id]; exists {
+			continue
+		}
+		positionByID[id] = position
+		position += 1
+	}
+
+	nextPosition := position
+	for i := range styles {
+		if p, ok := positionByID[styles[i].ID]; ok {
+			styles[i].Order = p
+			continue
+		}
+		styles[i].Order = nextPosition
+		nextPosition += 1
+	}
+
+	if err := a.saveDoorStylesUnsafe(styles); err != nil {
+		return nil, err
+	}
+
+	sortDoorStyles(styles)
+	return styles, nil
 }
 
 func (a *App) UpdateDoorStyle(id string, req DoorStyleRequest) (DoorStyle, error) {
@@ -807,7 +732,6 @@ func (a *App) SaveJob(job Job) (Job, error) {
 	job.Name = strings.TrimSpace(job.Name)
 	job.DefaultStyleID = strings.TrimSpace(job.DefaultStyleID)
 	job.DefaultOverlayCategoryID = strings.TrimSpace(job.DefaultOverlayCategoryID)
-	job.DefaultDrawerFrontCategoryID = strings.TrimSpace(job.DefaultDrawerFrontCategoryID)
 	job.DoorType = normalizeDoorType(job.DoorType)
 	if job.ButtGap <= 0 {
 		job.ButtGap = 0.125
@@ -968,43 +892,62 @@ func (a *App) seedDefaultSlabStyleOnceUnsafe() error {
 
 func (a *App) loadSettingsUnsafe() (AppSettings, error) {
 	if a.settingsPath == "" {
-		return AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories(), DrawerFrontCategories: defaultDrawerFrontCategories()}, nil
+		return AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}, nil
 	}
 
 	bytes, err := os.ReadFile(a.settingsPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories(), DrawerFrontCategories: defaultDrawerFrontCategories()}, nil
+			return AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}, nil
 		}
 		return AppSettings{}, err
 	}
 
-	settings := AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories(), DrawerFrontCategories: defaultDrawerFrontCategories()}
-	if len(bytes) == 0 {
-		return settings, nil
+	type settingsDisk struct {
+		Theme                 string            `json:"theme"`
+		OverlayCategories     []OverlayCategory `json:"overlayCategories"`
+		DrawerFrontCategories []OverlayCategory `json:"drawerFrontCategories,omitempty"`
+		OverlayPresets        []OverlayPreset   `json:"overlayPresets,omitempty"`
+		SeededDefaultSlab     bool              `json:"seededDefaultSlab,omitempty"`
 	}
 
-	if err := json.Unmarshal(bytes, &settings); err != nil {
+	disk := settingsDisk{Theme: "system", OverlayCategories: defaultOverlayCategories()}
+	if len(bytes) == 0 {
+		return AppSettings{Theme: disk.Theme, OverlayCategories: disk.OverlayCategories, OverlayPresets: disk.OverlayPresets, SeededDefaultSlab: disk.SeededDefaultSlab}, nil
+	}
+
+	if err := json.Unmarshal(bytes, &disk); err != nil {
 		return AppSettings{}, err
 	}
 
+	settings := AppSettings{
+		Theme:             disk.Theme,
+		OverlayCategories: disk.OverlayCategories,
+		OverlayPresets:    disk.OverlayPresets,
+		SeededDefaultSlab: disk.SeededDefaultSlab,
+	}
+
 	settings.Theme = normalizeTheme(settings.Theme)
+	settings.OverlayCategories = normalizeOverlayCategoryList(settings.OverlayCategories)
+	legacyDrawerCategories := normalizeOverlayCategoryList(disk.DrawerFrontCategories)
+	if len(legacyDrawerCategories) > 0 {
+		settings.OverlayCategories = mergeDrawerFrontIntoOverlayCategories(settings.OverlayCategories, legacyDrawerCategories)
+	}
+
 	if settings.OverlayCategories == nil {
 		if len(settings.OverlayPresets) > 0 {
 			settings.OverlayCategories = []OverlayCategory{
 				{
-					ID:    "legacy-import",
-					Name:  "Imported",
-					Items: makeSubcategoriesFromPresets(settings.OverlayPresets),
+					ID:        "legacy-import",
+					Name:      "Imported",
+					DoorItems: makeSubcategoriesFromPresets(settings.OverlayPresets),
 				},
 			}
 		} else {
 			settings.OverlayCategories = defaultOverlayCategories()
 		}
 	}
-	if settings.DrawerFrontCategories == nil {
-		settings.DrawerFrontCategories = defaultDrawerFrontCategories()
-	}
+
 	return settings, nil
 }
 
@@ -1012,6 +955,8 @@ func (a *App) saveSettingsUnsafe(settings AppSettings) error {
 	if a.settingsPath == "" {
 		return errors.New("settings storage path is not initialized")
 	}
+
+	settings.OverlayCategories = normalizeOverlayCategoryList(settings.OverlayCategories)
 
 	payload, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
@@ -1049,15 +994,152 @@ func normalizeOverlayType(overlayType string) string {
 	return "door"
 }
 
+func nextDoorStyleOrder(styles []DoorStyle) int {
+	maxOrder := 0
+	for _, style := range styles {
+		if style.Order > maxOrder {
+			maxOrder = style.Order
+		}
+	}
+
+	return maxOrder + 1
+}
+
+func sortDoorStyles(styles []DoorStyle) {
+	sort.SliceStable(styles, func(i, j int) bool {
+		leftHasOrder := styles[i].Order > 0
+		rightHasOrder := styles[j].Order > 0
+		if leftHasOrder && rightHasOrder && styles[i].Order != styles[j].Order {
+			return styles[i].Order < styles[j].Order
+		}
+		if leftHasOrder != rightHasOrder {
+			return leftHasOrder
+		}
+
+		leftName := strings.ToLower(strings.TrimSpace(styles[i].Name))
+		rightName := strings.ToLower(strings.TrimSpace(styles[j].Name))
+		if leftName == rightName {
+			return styles[i].ID < styles[j].ID
+		}
+
+		return leftName < rightName
+	})
+}
+
+func normalizeOverlaySubcategories(items []OverlaySubcategory) []OverlaySubcategory {
+	normalized := make([]OverlaySubcategory, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			continue
+		}
+
+		itemID := strings.TrimSpace(item.ID)
+		if itemID == "" {
+			itemID = uuid.NewString()
+		}
+
+		normalized = append(normalized, OverlaySubcategory{
+			ID:     itemID,
+			Name:   name,
+			Left:   item.Left,
+			Right:  item.Right,
+			Top:    item.Top,
+			Bottom: item.Bottom,
+		})
+	}
+
+	return normalized
+}
+
+func copyOverlaySubcategories(items []OverlaySubcategory) []OverlaySubcategory {
+	if len(items) == 0 {
+		return []OverlaySubcategory{}
+	}
+
+	copyItems := make([]OverlaySubcategory, len(items))
+	copy(copyItems, items)
+	return copyItems
+}
+
+func normalizeOverlayCategoryList(categories []OverlayCategory) []OverlayCategory {
+	normalized := make([]OverlayCategory, 0, len(categories))
+	for _, category := range categories {
+		name := strings.TrimSpace(category.Name)
+		if name == "" {
+			continue
+		}
+
+		categoryID := strings.TrimSpace(category.ID)
+		if categoryID == "" {
+			categoryID = uuid.NewString()
+		}
+
+		doorSource := category.DoorItems
+		if len(doorSource) == 0 && len(category.Items) > 0 {
+			doorSource = category.Items
+		}
+
+		normalized = append(normalized, OverlayCategory{
+			ID:               categoryID,
+			Name:             name,
+			DoorItems:        normalizeOverlaySubcategories(doorSource),
+			DrawerFrontItems: normalizeOverlaySubcategories(category.DrawerFrontItems),
+		})
+	}
+
+	return normalized
+}
+
+func mergeDrawerFrontIntoOverlayCategories(overlayCategories []OverlayCategory, drawerCategories []OverlayCategory) []OverlayCategory {
+	merged := normalizeOverlayCategoryList(overlayCategories)
+
+	nameIndex := map[string]int{}
+	for idx, category := range merged {
+		nameKey := strings.ToLower(strings.TrimSpace(category.Name))
+		if nameKey != "" {
+			nameIndex[nameKey] = idx
+		}
+	}
+
+	for _, rawDrawerCategory := range drawerCategories {
+		drawerCategory := normalizeOverlayCategoryList([]OverlayCategory{rawDrawerCategory})
+		if len(drawerCategory) == 0 {
+			continue
+		}
+
+		normalized := drawerCategory[0]
+		drawerItems := normalized.DrawerFrontItems
+		if len(drawerItems) == 0 {
+			drawerItems = normalized.DoorItems
+		}
+
+		nameKey := strings.ToLower(strings.TrimSpace(normalized.Name))
+		if idx, exists := nameIndex[nameKey]; exists {
+			merged[idx].DrawerFrontItems = copyOverlaySubcategories(drawerItems)
+			continue
+		}
+
+		newCategory := OverlayCategory{
+			ID:               normalized.ID,
+			Name:             normalized.Name,
+			DoorItems:        []OverlaySubcategory{},
+			DrawerFrontItems: copyOverlaySubcategories(drawerItems),
+		}
+		merged = append(merged, newCategory)
+		if nameKey != "" {
+			nameIndex[nameKey] = len(merged) - 1
+		}
+	}
+
+	return merged
+}
+
 func defaultOverlayPresets() []OverlayPreset {
 	return []OverlayPreset{}
 }
 
 func defaultOverlayCategories() []OverlayCategory {
-	return []OverlayCategory{}
-}
-
-func defaultDrawerFrontCategories() []OverlayCategory {
 	return []OverlayCategory{}
 }
 
@@ -1092,6 +1174,7 @@ func defaultSlabDoorStyle() DoorStyle {
 		ID:             defaultSlabStyleID,
 		Name:           "Slab",
 		IsSlab:         true,
+		Order:          1,
 		StileWidth:     0,
 		RailWidth:      0,
 		TenonLength:    0,

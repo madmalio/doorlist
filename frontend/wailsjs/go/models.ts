@@ -47,7 +47,9 @@ export namespace main {
 	export class OverlayCategory {
 	    id: string;
 	    name: string;
-	    items: OverlaySubcategory[];
+	    items?: OverlaySubcategory[];
+	    doorItems?: OverlaySubcategory[];
+	    drawerFrontItems?: OverlaySubcategory[];
 	
 	    static createFrom(source: any = {}) {
 	        return new OverlayCategory(source);
@@ -58,6 +60,8 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.items = this.convertValues(source["items"], OverlaySubcategory);
+	        this.doorItems = this.convertValues(source["doorItems"], OverlaySubcategory);
+	        this.drawerFrontItems = this.convertValues(source["drawerFrontItems"], OverlaySubcategory);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -81,7 +85,6 @@ export namespace main {
 	export class AppSettings {
 	    theme: string;
 	    overlayCategories: OverlayCategory[];
-	    drawerFrontCategories: OverlayCategory[];
 	    overlayPresets?: OverlayPreset[];
 	    seededDefaultSlab?: boolean;
 	
@@ -93,7 +96,6 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.theme = source["theme"];
 	        this.overlayCategories = this.convertValues(source["overlayCategories"], OverlayCategory);
-	        this.drawerFrontCategories = this.convertValues(source["drawerFrontCategories"], OverlayCategory);
 	        this.overlayPresets = this.convertValues(source["overlayPresets"], OverlayPreset);
 	        this.seededDefaultSlab = source["seededDefaultSlab"];
 	    }
@@ -121,7 +123,6 @@ export namespace main {
 	    project: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
-	    defaultDrawerFrontCategoryId: string;
 	    doorType: string;
 	    buttGap: number;
 	    useCustomOverlay: boolean;
@@ -141,7 +142,6 @@ export namespace main {
 	        this.project = source["project"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
-	        this.defaultDrawerFrontCategoryId = source["defaultDrawerFrontCategoryId"];
 	        this.doorType = source["doorType"];
 	        this.buttGap = source["buttGap"];
 	        this.useCustomOverlay = source["useCustomOverlay"];
@@ -260,6 +260,7 @@ export namespace main {
 	    id: string;
 	    name: string;
 	    isSlab: boolean;
+	    order?: number;
 	    stileWidth: number;
 	    railWidth: number;
 	    tenonLength: number;
@@ -275,6 +276,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.isSlab = source["isSlab"];
+	        this.order = source["order"];
 	        this.stileWidth = source["stileWidth"];
 	        this.railWidth = source["railWidth"];
 	        this.tenonLength = source["tenonLength"];
@@ -330,7 +332,6 @@ export namespace main {
 	    name: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
-	    defaultDrawerFrontCategoryId: string;
 	    doorType: string;
 	    buttGap: number;
 	    useCustomOverlay: boolean;
@@ -354,7 +355,6 @@ export namespace main {
 	        this.name = source["name"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
-	        this.defaultDrawerFrontCategoryId = source["defaultDrawerFrontCategoryId"];
 	        this.doorType = source["doorType"];
 	        this.buttGap = source["buttGap"];
 	        this.useCustomOverlay = source["useCustomOverlay"];
@@ -445,7 +445,6 @@ export namespace main {
 	    project: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
-	    defaultDrawerFrontCategoryId: string;
 	    doorType: string;
 	    buttGap: number;
 	    useCustomOverlay: boolean;
@@ -465,7 +464,6 @@ export namespace main {
 	        this.project = source["project"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
-	        this.defaultDrawerFrontCategoryId = source["defaultDrawerFrontCategoryId"];
 	        this.doorType = source["doorType"];
 	        this.buttGap = source["buttGap"];
 	        this.useCustomOverlay = source["useCustomOverlay"];

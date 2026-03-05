@@ -7,10 +7,9 @@ const emptyForm = {
   project: '',
   defaultStyleId: '',
   defaultOverlayCategoryId: '',
-  defaultDrawerFrontCategoryId: '',
 };
 
-export function JobForm({ job, doorStyles, overlayCategories, drawerFrontCategories, onSubmit, onCancel }) {
+export function JobForm({ job, doorStyles, overlayCategories, onSubmit, onCancel }) {
   const [formData, setFormData] = useState(emptyForm);
 
   useEffect(() => {
@@ -20,7 +19,6 @@ export function JobForm({ job, doorStyles, overlayCategories, drawerFrontCategor
         project: job.name || '',
         defaultStyleId: job.defaultStyleId || '',
         defaultOverlayCategoryId: job.defaultOverlayCategoryId || '',
-        defaultDrawerFrontCategoryId: job.defaultDrawerFrontCategoryId || drawerFrontCategories?.[0]?.id || '',
       });
       return;
     }
@@ -29,9 +27,8 @@ export function JobForm({ job, doorStyles, overlayCategories, drawerFrontCategor
       ...emptyForm,
       defaultStyleId: doorStyles?.[0]?.id || '',
       defaultOverlayCategoryId: overlayCategories?.[0]?.id || '',
-      defaultDrawerFrontCategoryId: drawerFrontCategories?.[0]?.id || '',
     });
-  }, [job, doorStyles, overlayCategories, drawerFrontCategories]);
+  }, [job, doorStyles, overlayCategories]);
 
   const onChange = (event) => {
     const { name, value } = event.target;
@@ -49,7 +46,6 @@ export function JobForm({ job, doorStyles, overlayCategories, drawerFrontCategor
       project: formData.project.trim(),
       defaultStyleId: formData.defaultStyleId,
       defaultOverlayCategoryId: formData.defaultOverlayCategoryId,
-      defaultDrawerFrontCategoryId: formData.defaultDrawerFrontCategoryId,
       defaultOverlay: job?.defaultOverlay ?? 0.5,
     });
   };
@@ -111,24 +107,6 @@ export function JobForm({ job, doorStyles, overlayCategories, drawerFrontCategor
           ))}
         </select>
       </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300" htmlFor="defaultDrawerFrontCategoryId">Drawer Front</label>
-        <select
-          id="defaultDrawerFrontCategoryId"
-          name="defaultDrawerFrontCategoryId"
-          value={formData.defaultDrawerFrontCategoryId}
-          onChange={onChange}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-        >
-          <option value="">No category selected</option>
-          {(drawerFrontCategories || []).map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel

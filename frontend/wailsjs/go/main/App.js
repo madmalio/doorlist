@@ -22,10 +22,6 @@ export function GenerateCutList(arg1) {
   return window['go']['main']['App']['GenerateCutList'](arg1);
 }
 
-export function GetDrawerFrontCategories() {
-  return window['go']['main']['App']['GetDrawerFrontCategories']();
-}
-
 export function GetJob(arg1) {
   return window['go']['main']['App']['GetJob'](arg1);
 }
@@ -54,8 +50,8 @@ export function LoadJobs() {
   return window['go']['main']['App']['LoadJobs']();
 }
 
-export function SaveDrawerFrontCategories(arg1) {
-  return window['go']['main']['App']['SaveDrawerFrontCategories'](arg1);
+export function SaveDoorStyleOrder(arg1) {
+  return window['go']['main']['App']['SaveDoorStyleOrder'](arg1);
 }
 
 export function SaveJob(arg1) {

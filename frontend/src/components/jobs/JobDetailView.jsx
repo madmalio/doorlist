@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ListChecks, Pencil, Plus, Printer, RefreshCw, Save, Trash2 } from 'lucide-react';
-import { GenerateCutList, GetDrawerFrontCategories, GetJob, GetOverlayCategories, LoadDoorStyles, SaveJob } from '../../../wailsjs/go/main/App';
+import { GenerateCutList, GetJob, GetOverlayCategories, LoadDoorStyles, SaveJob } from '../../../wailsjs/go/main/App';
 import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
@@ -315,7 +315,6 @@ export function JobDetailView({ jobId, onBack }) {
   const [draftRow, setDraftRow] = useState(createDoorDraft('', 0.5));
   const [doorStyles, setDoorStyles] = useState([]);
   const [overlayCategories, setOverlayCategories] = useState([]);
-  const [drawerFrontCategories, setDrawerFrontCategories] = useState([]);
   const [cutList, setCutList] = useState(null);
   const [showCutList, setShowCutList] = useState(false);
   const [isLoadingCutList, setIsLoadingCutList] = useState(false);
@@ -330,36 +329,44 @@ export function JobDetailView({ jobId, onBack }) {
     () => overlayCategories.find((category) => category.id === job?.defaultOverlayCategoryId) || null,
     [overlayCategories, job?.defaultOverlayCategoryId],
   );
-  const overlayItems = useMemo(() => (selectedOverlayCategory?.items || []), [selectedOverlayCategory]);
-  const selectedDrawerFrontCategory = useMemo(() => {
-    if (!drawerFrontCategories || drawerFrontCategories.length === 0) {
-      return null;
-    }
-
-    const selectedByID = drawerFrontCategories.find((category) => category.id === job?.defaultDrawerFrontCategoryId);
-    if (selectedByID) {
-      return selectedByID;
-    }
-
-    const selectedDoorCategoryName = (selectedOverlayCategory?.name || '').trim().toLowerCase();
-    if (selectedDoorCategoryName) {
-      const selectedByName = drawerFrontCategories.find((category) => (category.name || '').trim().toLowerCase() === selectedDoorCategoryName);
-      if (selectedByName) {
-        return selectedByName;
-      }
-    }
-
-    return drawerFrontCategories.find((category) => (category.items || []).length > 0) || drawerFrontCategories[0] || null;
-  }, [drawerFrontCategories, job?.defaultDrawerFrontCategoryId, selectedOverlayCategory?.name]);
-  const drawerFrontItems = useMemo(() => (selectedDrawerFrontCategory?.items || []), [selectedDrawerFrontCategory]);
+  const overlayItems = useMemo(() => (selectedOverlayCategory?.doorItems || []), [selectedOverlayCategory]);
+  const drawerFrontItems = useMemo(() => (selectedOverlayCategory?.drawerFrontItems || []), [selectedOverlayCategory]);
   const frameItems = useMemo(() => (cutList?.items || []).filter((item) => item.part === 'Stile' || item.part === 'Rail'), [cutList]);
   const panelItems = useMemo(() => (cutList?.items || []).filter((item) => item.part === 'Panel'), [cutList]);
   const slabItems = useMemo(() => (cutList?.items || []).filter((item) => item.part === 'Slab'), [cutList]);
+  const getThicknessLabel = (items) => {
+    if (!items.length) {
+      return '';
+    }
+
+    const values = Array.from(new Set(items.map((item) => item.thicknessFormatted || '').filter(Boolean)));
+    if (values.length === 0) {
+      return '';
+    }
+
+    return values.join(', ');
+  };
+  const frameThicknessLabel = useMemo(() => getThicknessLabel(frameItems), [frameItems]);
+  const frameLinearFeetLabel = useMemo(() => {
+    if (!frameItems.length) {
+      return '';
+    }
+
+    const totalFeet = frameItems.reduce((sum, item) => {
+      const length = Number(item.length) || 0;
+      const qty = Number(item.qty) || 0;
+      return sum + (length * qty) / 12;
+    }, 0);
+
+    return totalFeet.toFixed(2);
+  }, [frameItems]);
+  const slabThicknessLabel = useMemo(() => getThicknessLabel(slabItems), [slabItems]);
+  const panelThicknessLabel = useMemo(() => getThicknessLabel(panelItems), [panelItems]);
   const printSections = useMemo(
     () => [
       { id: 'frame', title: 'Stiles & Rails', items: frameItems },
-      { id: 'panel', title: 'Panels', items: panelItems },
       { id: 'slab', title: 'Slabs', items: slabItems },
+      { id: 'panel', title: 'Panels', items: panelItems },
     ].filter((section) => section.items.length > 0),
     [frameItems, panelItems, slabItems],
   );
@@ -368,11 +375,10 @@ export function JobDetailView({ jobId, onBack }) {
     const load = async () => {
       setIsLoading(true);
       try {
-        const [jobData, styles, categories, drawerCategories] = await Promise.all([GetJob(jobId), LoadDoorStyles(), GetOverlayCategories(), GetDrawerFrontCategories()]);
+        const [jobData, styles, categories] = await Promise.all([GetJob(jobId), LoadDoorStyles(), GetOverlayCategories()]);
         setJob(jobData);
         setDoorStyles(styles || []);
         setOverlayCategories(categories || []);
-        setDrawerFrontCategories(drawerCategories || []);
         setRows((jobData?.doors || []).map((door) => mapDoorToRow(door, jobData.defaultStyleId, jobData.defaultOverlay)));
         setDraftRow(createDoorDraft(jobData.defaultStyleId, jobData.defaultOverlay));
       } catch (error) {
@@ -717,16 +723,28 @@ export function JobDetailView({ jobId, onBack }) {
               <>
                 {printSections.map((section) => (
                 <div key={section.id} className="print-cutlist-section">
-                  <h4 className="mb-2 text-sm font-semibold text-zinc-700 dark:text-zinc-300">{section.title}</h4>
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">{section.title}</h4>
+                    <div className="flex items-center gap-4">
+                      {section.id === 'frame' && frameThicknessLabel ? <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Thickness: {frameThicknessLabel}</span> : null}
+                      {section.id === 'slab' && slabThicknessLabel ? <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Thickness: {slabThicknessLabel}</span> : null}
+                      {section.id === 'panel' && panelThicknessLabel ? <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Thickness: {panelThicknessLabel}</span> : null}
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full table-fixed print-cutlist-table">
+                      <colgroup>
+                        <col className="w-[20%]" />
+                        <col className="w-[16%]" />
+                        <col className="w-[26%]" />
+                        <col className="w-[38%]" />
+                      </colgroup>
                       <thead>
                         <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Part</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Qty</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Width</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Length</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Thickness</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -736,12 +754,16 @@ export function JobDetailView({ jobId, onBack }) {
                             <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.qty}</td>
                             <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.widthFormatted || '-'}</td>
                             <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.lengthFormatted}</td>
-                            <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.thicknessFormatted || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  {section.id === 'frame' && frameLinearFeetLabel ? (
+                    <div className="mt-2 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                      Linear Feet: {frameLinearFeetLabel}
+                    </div>
+                  ) : null}
                 </div>
                 ))}
               </>
