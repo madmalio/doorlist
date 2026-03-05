@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+html.dark {
+  --app-zinc-50: #fafafa;
+  --app-zinc-100: #f4f4f5;
+  --app-zinc-200: #e4e4e7;
+  --app-zinc-300: #d4d4d8;
+  --app-zinc-400: #a1a1aa;
+  --app-zinc-500: #71717a;
+  --app-zinc-600: #52525b;
+  --app-zinc-700: #3f3f46;
+  --app-zinc-800: #27272a;
+  --app-zinc-900: #18181b;
+  --app-zinc-950: #09090c;
+  color-scheme: dark;
+}
+
+html.light {
+  --app-zinc-50: #09090c;
+  --app-zinc-100: #18181b;
+  --app-zinc-200: #27272a;
+  --app-zinc-300: #3f3f46;
+  --app-zinc-400: #52525b;
+  --app-zinc-500: #71717a;
+  --app-zinc-600: #a1a1aa;
+  --app-zinc-700: #d4d4d8;
+  --app-zinc-800: #e4e4e7;
+  --app-zinc-900: #f4f4f5;
+  --app-zinc-950: #fafafa;
+  color-scheme: light;
+}
+
+@layer base {
+  :root {
+    --color-zinc-50: var(--app-zinc-50);
+    --color-zinc-100: var(--app-zinc-100);
+    --color-zinc-200: var(--app-zinc-200);
+    --color-zinc-300: var(--app-zinc-300);
+    --color-zinc-400: var(--app-zinc-400);
+    --color-zinc-500: var(--app-zinc-500);
+    --color-zinc-600: var(--app-zinc-600);
+    --color-zinc-700: var(--app-zinc-700);
+    --color-zinc-800: var(--app-zinc-800);
+    --color-zinc-900: var(--app-zinc-900);
+    --color-zinc-950: var(--app-zinc-950);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*:not(.no-theme-transition),
+*:not(.no-theme-transition)::before,
+*:not(.no-theme-transition)::after {
+  transition-duration: 200ms;
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: ease;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  background-color: var(--app-zinc-950);
+  color: var(--app-zinc-100);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-cutlist-root,
+  .print-cutlist-root * {
+    visibility: visible;
+  }
+
+  .print-cutlist-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #ffffff !important;
+    color: #111111 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-cutlist-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 16px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    border: 1px solid #d4d4d8;
+    color: #111111 !important;
+  }
+}
