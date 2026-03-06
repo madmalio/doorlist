@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, FolderOpen, Library, Search, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, Library, Search, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const navItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
   { id: 'jobs', label: 'Jobs', icon: <FolderOpen size={20} /> },
   { id: 'catalog', label: 'Catalog', icon: <Library size={20} /> },
 ];
@@ -19,7 +20,7 @@ export function Sidebar({ activeView, onViewChange, onOpenSearch }) {
     >
       <div className="border-b border-zinc-200 px-3 py-4 dark:border-zinc-800">
         <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'justify-between')}>
-          {!isCollapsed ? <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">DoorList</h1> : null}
+          {!isCollapsed ? <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">CutLogic</h1> : null}
           <button
             type="button"
             onClick={() => setIsCollapsed((prev) => !prev)}
@@ -89,7 +90,7 @@ export function Sidebar({ activeView, onViewChange, onOpenSearch }) {
       </div>
 
       <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
-        <p className={cn('text-zinc-500 dark:text-zinc-500', isCollapsed ? 'text-center text-[10px]' : 'text-xs')}>v0.0.0</p>
+        <p className={cn('text-zinc-500 dark:text-zinc-500', isCollapsed ? 'text-center text-[10px]' : 'text-xs')}>v1.0.0</p>
       </div>
     </aside>
   );

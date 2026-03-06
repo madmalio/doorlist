@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { GetSettings, UpdateSettings } from '../../../wailsjs/go/main/App';
 
 const ThemeContext = createContext(undefined);
+const THEME_STORAGE_KEY = 'cutlogic-theme';
 
 function normalizeTheme(theme) {
   if (theme === 'light' || theme === 'dark' || theme === 'system') {
@@ -12,15 +13,26 @@ function normalizeTheme(theme) {
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setThemeState] = useState('system');
+  const [theme, setThemeState] = useState(() => {
+    try {
+      return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
+    } catch (error) {
+      return 'system';
+    }
+  });
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const loadTheme = async () => {
       try {
         const settings = await GetSettings();
-        setThemeState(normalizeTheme(settings?.theme));
+        const normalized = normalizeTheme(settings?.theme);
+        setThemeState(normalized);
+        window.localStorage.setItem(THEME_STORAGE_KEY, normalized);
       } catch (error) {
-        setThemeState('system');
+        // Keep current theme when settings cannot be loaded.
+      } finally {
+        setIsReady(true);
       }
     };
 
@@ -55,6 +67,7 @@ export function ThemeProvider({ children }) {
   const setTheme = async (nextTheme) => {
     const normalized = normalizeTheme(nextTheme);
     setThemeState(normalized);
+    window.localStorage.setItem(THEME_STORAGE_KEY, normalized);
 
     try {
       await UpdateSettings({ theme: normalized });
@@ -63,7 +76,7 @@ export function ThemeProvider({ children }) {
     }
   };
 
-  const value = useMemo(() => ({ theme, setTheme }), [theme]);
+  const value = useMemo(() => ({ theme, setTheme, isReady }), [theme, isReady]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

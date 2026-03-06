@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { CreateJob, DeleteJob, GetJobsPage, GetOverlayCategories, LoadDoorStyles, UpdateJob } from '../../../wailsjs/go/main/App';
+import { Pencil, Plus, Printer, Trash2 } from 'lucide-react';
+import { CreateJob, DeleteJob, GenerateCutList, GetJobsPage, GetOverlayCategories, LoadDoorStyles, UpdateJob } from '../../../wailsjs/go/main/App';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { ConfirmModal } from '../ui/ConfirmModal';
@@ -8,6 +8,33 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { JobForm } from './JobForm';
+
+function getJobStatus(job) {
+  const status = String(job?.productionStatus || 'draft').toLowerCase();
+  if (status === 'in production') {
+    return {
+      label: 'In Production',
+      className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+    };
+  }
+  if (status === 'in finishing') {
+    return {
+      label: 'In Finishing',
+      className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+    };
+  }
+  if (status === 'complete') {
+    return {
+      label: 'Complete',
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+    };
+  }
+
+  return {
+    label: 'Draft',
+    className: 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  };
+}
 
 export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
   const [jobs, setJobs] = useState([]);
@@ -22,6 +49,8 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
   const [jobToDelete, setJobToDelete] = useState(null);
+  const [isPrintingJobId, setIsPrintingJobId] = useState(null);
+  const [printPayload, setPrintPayload] = useState(null);
   const { showToast } = useToast();
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -113,12 +142,18 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
       if (editingJob) {
         await UpdateJob(editingJob.id, payload);
         showToast('Job updated', 'success');
+        await reload();
+        closeModal();
       } else {
-        await CreateJob(payload);
+        const createdJob = await CreateJob(payload);
         showToast('Job created', 'success');
+        closeModal();
+        if (createdJob?.id) {
+          onOpenJob(createdJob.id);
+        } else {
+          await reload();
+        }
       }
-      await reload();
-      closeModal();
     } catch (error) {
       showToast('Failed to save job', 'error');
     }
@@ -146,6 +181,50 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
       closeDeleteModal();
     } catch (error) {
       showToast('Failed to delete job', 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (!printPayload) {
+      return undefined;
+    }
+
+    const onAfterPrint = () => {
+      setPrintPayload(null);
+    };
+
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => {
+      window.removeEventListener('afterprint', onAfterPrint);
+    };
+  }, [printPayload]);
+
+  const handleQuickPrint = async (job) => {
+    if (!job?.id || isPrintingJobId) {
+      return;
+    }
+
+    setIsPrintingJobId(job.id);
+    try {
+      const cutList = await GenerateCutList(job.id);
+      const items = Array.isArray(cutList?.items) ? cutList.items : [];
+      if (items.length === 0) {
+        showToast('No cut list parts to print for this job', 'error');
+        return;
+      }
+
+      setPrintPayload({
+        job,
+        items,
+      });
+
+      window.setTimeout(() => {
+        window.print();
+      }, 0);
+    } catch (error) {
+      showToast('Unable to generate cut list for this job', 'error');
+    } finally {
+      setIsPrintingJobId(null);
     }
   };
 
@@ -187,47 +266,68 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
                 <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
                   <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Customer</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Project</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Status</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Created</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {jobs.map((job) => (
-                  <tr
-                    key={job.id}
-                    className="cursor-pointer border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
-                    onClick={() => onOpenJob(job.id)}
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">{job.customerName || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{job.name}</td>
-                    <td className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">{new Date(job.createdDate).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openEdit(job);
-                          }}
-                          title="Edit job"
-                        >
-                          <Pencil size={14} className="text-zinc-500 dark:text-zinc-400" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openDeleteModal(job);
-                          }}
-                          title="Delete job"
-                        >
-                          <Trash2 size={14} className="text-rose-400" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
+                  (() => {
+                    const status = getJobStatus(job);
+                    return (
+                      <tr
+                        key={job.id}
+                        className="cursor-pointer border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                        onClick={() => onOpenJob(job.id)}
+                      >
+                        <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">{job.customerName || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{job.name}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${status.className}`}>{status.label}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">{new Date(job.createdDate).toLocaleDateString()}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleQuickPrint(job);
+                              }}
+                              title="Print cut list"
+                              disabled={Boolean(isPrintingJobId)}
+                            >
+                              <Printer size={14} className="text-zinc-500 dark:text-zinc-400" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openEdit(job);
+                              }}
+                              title="Edit job"
+                            >
+                              <Pencil size={14} className="text-zinc-500 dark:text-zinc-400" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openDeleteModal(job);
+                              }}
+                              title="Delete job"
+                            >
+                              <Trash2 size={14} className="text-rose-400" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })()
                 ))}
               </tbody>
             </table>
@@ -288,6 +388,54 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
         warning="This action permanently removes the job and its door entries."
         confirmLabel="Delete Job"
       />
+
+      {printPayload ? (
+        <Card className="print-cutlist-root">
+          <CardHeader>
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Cut List</h3>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 print:text-zinc-700">
+                {printPayload.job.customerName} - {printPayload.job.name}
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="print-cutlist-section">
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed print-cutlist-table">
+                  <colgroup>
+                    <col className="w-[20%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[20%]" />
+                  </colgroup>
+                  <thead>
+                    <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+                      <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Part</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Qty</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Width</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Length</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Thickness</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {printPayload.items.map((item, index) => (
+                      <tr key={`${item.part}-${item.label}-${index}`} className="border-b border-zinc-200 dark:border-zinc-800">
+                        <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">{item.part}</td>
+                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.qty}</td>
+                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.widthFormatted || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.lengthFormatted || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{item.thicknessFormatted || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

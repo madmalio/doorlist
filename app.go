@@ -75,6 +75,7 @@ type Job struct {
 	ID                       string      `json:"id"`
 	CustomerName             string      `json:"customerName"`
 	Name                     string      `json:"name"`
+	ProductionStatus         string      `json:"productionStatus"`
 	DefaultStyleID           string      `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string      `json:"defaultOverlayCategoryId"`
 	DoorType                 string      `json:"doorType"`
@@ -92,6 +93,7 @@ type Job struct {
 type CreateJobRequest struct {
 	CustomerName             string  `json:"customerName"`
 	Project                  string  `json:"project"`
+	ProductionStatus         string  `json:"productionStatus"`
 	DefaultStyleID           string  `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
 	DoorType                 string  `json:"doorType"`
@@ -107,6 +109,7 @@ type CreateJobRequest struct {
 type UpdateJobRequest struct {
 	CustomerName             string  `json:"customerName"`
 	Project                  string  `json:"project"`
+	ProductionStatus         string  `json:"productionStatus"`
 	DefaultStyleID           string  `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
 	DoorType                 string  `json:"doorType"`
@@ -137,6 +140,26 @@ type AppSettings struct {
 	OverlayCategories []OverlayCategory `json:"overlayCategories"`
 	OverlayPresets    []OverlayPreset   `json:"overlayPresets,omitempty"`
 	SeededDefaultSlab bool              `json:"seededDefaultSlab,omitempty"`
+}
+
+type CatalogDataPayload struct {
+	Version    int         `json:"version"`
+	ExportedAt string      `json:"exportedAt,omitempty"`
+	Styles     []DoorStyle `json:"styles"`
+}
+
+type OverlayDataPayload struct {
+	Version           int               `json:"version"`
+	ExportedAt        string            `json:"exportedAt,omitempty"`
+	OverlayCategories []OverlayCategory `json:"overlayCategories"`
+}
+
+type AppBackupPayload struct {
+	Version    int         `json:"version"`
+	ExportedAt string      `json:"exportedAt,omitempty"`
+	Settings   AppSettings `json:"settings"`
+	Styles     []DoorStyle `json:"styles"`
+	Jobs       []Job       `json:"jobs"`
 }
 
 type OverlayPreset struct {
@@ -180,6 +203,8 @@ type UpdateSettingsRequest struct {
 type DoorStyle struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
+	Family         string  `json:"family,omitempty"`
+	Variant        string  `json:"variant,omitempty"`
 	IsSlab         bool    `json:"isSlab"`
 	Order          int     `json:"order,omitempty"`
 	StileWidth     float64 `json:"stileWidth"`
@@ -191,6 +216,8 @@ type DoorStyle struct {
 
 type DoorStyleRequest struct {
 	Name           string  `json:"name"`
+	Family         string  `json:"family,omitempty"`
+	Variant        string  `json:"variant,omitempty"`
 	StileWidth     float64 `json:"stileWidth"`
 	RailWidth      float64 `json:"railWidth"`
 	TenonLength    float64 `json:"tenonLength"`
@@ -311,6 +338,7 @@ func (a *App) CreateJob(req CreateJobRequest) (Job, error) {
 		ID:                       uuid.NewString(),
 		CustomerName:             strings.TrimSpace(req.CustomerName),
 		Name:                     strings.TrimSpace(req.Project),
+		ProductionStatus:         normalizeProductionStatus(req.ProductionStatus),
 		DefaultStyleID:           strings.TrimSpace(req.DefaultStyleID),
 		DefaultOverlayCategoryID: strings.TrimSpace(req.DefaultOverlayCategoryID),
 		DoorType:                 normalizeDoorType(req.DoorType),
@@ -357,6 +385,7 @@ func (a *App) UpdateJob(id string, req UpdateJobRequest) (Job, error) {
 		if jobs[i].ID == id {
 			jobs[i].CustomerName = strings.TrimSpace(req.CustomerName)
 			jobs[i].Name = strings.TrimSpace(req.Project)
+			jobs[i].ProductionStatus = normalizeProductionStatus(req.ProductionStatus)
 			jobs[i].DefaultStyleID = strings.TrimSpace(req.DefaultStyleID)
 			jobs[i].DefaultOverlayCategoryID = strings.TrimSpace(req.DefaultOverlayCategoryID)
 			jobs[i].DoorType = normalizeDoorType(req.DoorType)
@@ -515,6 +544,165 @@ func (a *App) SaveOverlayCategories(categories []OverlayCategory) ([]OverlayCate
 	return settings.OverlayCategories, nil
 }
 
+func (a *App) ExportCatalogData() (CatalogDataPayload, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	styles, err := a.loadDoorStylesUnsafe()
+	if err != nil {
+		return CatalogDataPayload{}, err
+	}
+
+	styles = normalizeDoorStyleSliceForStorage(styles)
+
+	return CatalogDataPayload{
+		Version:    1,
+		ExportedAt: time.Now().UTC().Format(time.RFC3339),
+		Styles:     styles,
+	}, nil
+}
+
+func (a *App) ImportCatalogData(payload CatalogDataPayload) ([]DoorStyle, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	styles := normalizeDoorStyleSliceForStorage(payload.Styles)
+	if err := a.saveDoorStylesUnsafe(styles); err != nil {
+		return nil, err
+	}
+
+	if err := a.seedDefaultSlabStyleOnceUnsafe(); err != nil {
+		return nil, err
+	}
+
+	return styles, nil
+}
+
+func (a *App) ExportOverlayData() (OverlayDataPayload, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings, err := a.loadSettingsUnsafe()
+	if err != nil {
+		return OverlayDataPayload{}, err
+	}
+
+	return OverlayDataPayload{
+		Version:           1,
+		ExportedAt:        time.Now().UTC().Format(time.RFC3339),
+		OverlayCategories: normalizeOverlayCategoryList(settings.OverlayCategories),
+	}, nil
+}
+
+func (a *App) ImportOverlayData(payload OverlayDataPayload) ([]OverlayCategory, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings, err := a.loadSettingsUnsafe()
+	if err != nil {
+		return nil, err
+	}
+
+	settings.OverlayCategories = normalizeOverlayCategoryList(payload.OverlayCategories)
+	if err := a.saveSettingsUnsafe(settings); err != nil {
+		return nil, err
+	}
+
+	return settings.OverlayCategories, nil
+}
+
+func (a *App) ExportAllData() (AppBackupPayload, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings, err := a.loadSettingsUnsafe()
+	if err != nil {
+		return AppBackupPayload{}, err
+	}
+
+	styles, err := a.loadDoorStylesUnsafe()
+	if err != nil {
+		return AppBackupPayload{}, err
+	}
+
+	jobs, err := a.loadJobsUnsafe()
+	if err != nil {
+		return AppBackupPayload{}, err
+	}
+
+	return AppBackupPayload{
+		Version:    1,
+		ExportedAt: time.Now().UTC().Format(time.RFC3339),
+		Settings:   settings,
+		Styles:     normalizeDoorStyleSliceForStorage(styles),
+		Jobs:       jobs,
+	}, nil
+}
+
+func (a *App) ImportAllData(payload AppBackupPayload) (AppBackupPayload, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings := payload.Settings
+	if strings.TrimSpace(settings.Theme) == "" {
+		settings.Theme = "system"
+	}
+	settings.Theme = normalizeTheme(settings.Theme)
+	settings.OverlayCategories = normalizeOverlayCategoryList(settings.OverlayCategories)
+
+	styles := normalizeDoorStyleSliceForStorage(payload.Styles)
+
+	jobs := make([]Job, 0, len(payload.Jobs))
+	for _, job := range payload.Jobs {
+		jobs = append(jobs, normalizeJobForStorage(job))
+	}
+
+	if err := a.saveSettingsUnsafe(settings); err != nil {
+		return AppBackupPayload{}, err
+	}
+	if err := a.saveDoorStylesUnsafe(styles); err != nil {
+		return AppBackupPayload{}, err
+	}
+	if err := a.saveJobsUnsafe(jobs); err != nil {
+		return AppBackupPayload{}, err
+	}
+
+	if err := a.seedDefaultSlabStyleOnceUnsafe(); err != nil {
+		return AppBackupPayload{}, err
+	}
+
+	updatedSettings, err := a.loadSettingsUnsafe()
+	if err != nil {
+		return AppBackupPayload{}, err
+	}
+
+	return AppBackupPayload{
+		Version:    1,
+		ExportedAt: time.Now().UTC().Format(time.RFC3339),
+		Settings:   updatedSettings,
+		Styles:     styles,
+		Jobs:       jobs,
+	}, nil
+}
+
+func (a *App) WipeAllData() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings := AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}
+	if err := a.saveSettingsUnsafe(settings); err != nil {
+		return err
+	}
+	if err := a.saveJobsUnsafe([]Job{}); err != nil {
+		return err
+	}
+	if err := a.saveDoorStylesUnsafe([]DoorStyle{}); err != nil {
+		return err
+	}
+
+	return a.seedDefaultSlabStyleOnceUnsafe()
+}
+
 func (a *App) SearchGlobal(query string) ([]GlobalSearchResult, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -580,8 +768,9 @@ func (a *App) CreateDoorStyle(req DoorStyleRequest) (DoorStyle, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if strings.TrimSpace(req.Name) == "" {
-		return DoorStyle{}, errors.New("style name is required")
+	styleName, familyName, variantName := normalizeDoorStyleIdentity(req.Name, req.Family, req.Variant)
+	if familyName == "" {
+		return DoorStyle{}, errors.New("style family is required")
 	}
 
 	styles, err := a.loadDoorStylesUnsafe()
@@ -591,7 +780,9 @@ func (a *App) CreateDoorStyle(req DoorStyleRequest) (DoorStyle, error) {
 
 	style := DoorStyle{
 		ID:             uuid.NewString(),
-		Name:           strings.TrimSpace(req.Name),
+		Name:           styleName,
+		Family:         familyName,
+		Variant:        variantName,
 		IsSlab:         false,
 		Order:          nextDoorStyleOrder(styles),
 		StileWidth:     req.StileWidth,
@@ -654,8 +845,9 @@ func (a *App) UpdateDoorStyle(id string, req DoorStyleRequest) (DoorStyle, error
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	if strings.TrimSpace(req.Name) == "" {
-		return DoorStyle{}, errors.New("style name is required")
+	styleName, familyName, variantName := normalizeDoorStyleIdentity(req.Name, req.Family, req.Variant)
+	if familyName == "" {
+		return DoorStyle{}, errors.New("style family is required")
 	}
 
 	styles, err := a.loadDoorStylesUnsafe()
@@ -669,7 +861,9 @@ func (a *App) UpdateDoorStyle(id string, req DoorStyleRequest) (DoorStyle, error
 				return DoorStyle{}, errors.New("default slab style cannot be edited")
 			}
 
-			styles[i].Name = strings.TrimSpace(req.Name)
+			styles[i].Name = styleName
+			styles[i].Family = familyName
+			styles[i].Variant = variantName
 			styles[i].StileWidth = req.StileWidth
 			styles[i].RailWidth = req.RailWidth
 			styles[i].TenonLength = req.TenonLength
@@ -730,6 +924,7 @@ func (a *App) SaveJob(job Job) (Job, error) {
 	}
 	job.CustomerName = strings.TrimSpace(job.CustomerName)
 	job.Name = strings.TrimSpace(job.Name)
+	job.ProductionStatus = normalizeProductionStatus(job.ProductionStatus)
 	job.DefaultStyleID = strings.TrimSpace(job.DefaultStyleID)
 	job.DefaultOverlayCategoryID = strings.TrimSpace(job.DefaultOverlayCategoryID)
 	job.DoorType = normalizeDoorType(job.DoorType)
@@ -797,6 +992,21 @@ func (a *App) loadJobsUnsafe() ([]Job, error) {
 		return nil, err
 	}
 
+	updated := false
+	for i := range jobs {
+		normalizedStatus := normalizeProductionStatus(jobs[i].ProductionStatus)
+		if jobs[i].ProductionStatus != normalizedStatus {
+			jobs[i].ProductionStatus = normalizedStatus
+			updated = true
+		}
+	}
+
+	if updated {
+		if err := a.saveJobsUnsafe(jobs); err != nil {
+			return nil, err
+		}
+	}
+
 	return jobs, nil
 }
 
@@ -834,6 +1044,18 @@ func (a *App) loadDoorStylesUnsafe() ([]DoorStyle, error) {
 
 	if err := json.Unmarshal(bytes, &styles); err != nil {
 		return nil, err
+	}
+
+	for i := range styles {
+		styles[i].Name, styles[i].Family, styles[i].Variant = normalizeDoorStyleIdentity(styles[i].Name, styles[i].Family, styles[i].Variant)
+		if styles[i].IsSlab || styles[i].ID == defaultSlabStyleID {
+			styles[i].Name = "Slab"
+			styles[i].Family = "Slab"
+			styles[i].Variant = ""
+		}
+		if styles[i].Order <= 0 {
+			styles[i].Order = i + 1
+		}
 	}
 
 	return styles, nil
@@ -985,6 +1207,15 @@ func normalizeDoorType(doorType string) string {
 	return "single"
 }
 
+func normalizeProductionStatus(status string) string {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	if normalized == "draft" || normalized == "in production" || normalized == "in finishing" || normalized == "complete" {
+		return normalized
+	}
+
+	return "draft"
+}
+
 func normalizeOverlayType(overlayType string) string {
 	normalized := strings.ToLower(strings.TrimSpace(overlayType))
 	if normalized == "drawer-front" {
@@ -992,6 +1223,113 @@ func normalizeOverlayType(overlayType string) string {
 	}
 
 	return "door"
+}
+
+func normalizeDoorStyleIdentity(name string, family string, variant string) (string, string, string) {
+	resolvedFamily := strings.TrimSpace(family)
+	resolvedVariant := strings.TrimSpace(variant)
+	resolvedName := strings.TrimSpace(name)
+
+	if resolvedFamily == "" {
+		resolvedFamily = resolvedName
+	}
+	if strings.EqualFold(resolvedFamily, "slab") {
+		resolvedFamily = "Slab"
+		resolvedVariant = ""
+		if resolvedName == "" || strings.EqualFold(resolvedName, "slab") {
+			resolvedName = "Slab"
+		}
+		return resolvedName, resolvedFamily, resolvedVariant
+	}
+	if resolvedVariant == "" {
+		resolvedVariant = "Standard"
+	}
+	if resolvedName == "" {
+		if strings.EqualFold(resolvedVariant, "Standard") {
+			resolvedName = resolvedFamily
+		} else {
+			resolvedName = resolvedFamily + " - " + resolvedVariant
+		}
+	}
+
+	return resolvedName, resolvedFamily, resolvedVariant
+}
+
+func normalizeDoorStyleSliceForStorage(styles []DoorStyle) []DoorStyle {
+	normalized := make([]DoorStyle, 0, len(styles)+1)
+	hasSlab := false
+	slabCandidate := defaultSlabDoorStyle()
+
+	for _, rawStyle := range styles {
+		style := rawStyle
+		style.Name, style.Family, style.Variant = normalizeDoorStyleIdentity(style.Name, style.Family, style.Variant)
+
+		isSlab := style.ID == defaultSlabStyleID || style.IsSlab || strings.EqualFold(style.Family, "slab") || strings.EqualFold(style.Name, "slab")
+		if isSlab {
+			if !hasSlab {
+				hasSlab = true
+				slabCandidate = defaultSlabDoorStyle()
+				if style.PanelThickness > 0 {
+					slabCandidate.PanelThickness = style.PanelThickness
+				}
+				if style.Order > 0 {
+					slabCandidate.Order = style.Order
+				}
+			}
+			continue
+		}
+
+		style.IsSlab = false
+		if strings.TrimSpace(style.ID) == "" {
+			style.ID = uuid.NewString()
+		}
+		normalized = append(normalized, style)
+	}
+
+	if !hasSlab {
+		slabCandidate = defaultSlabDoorStyle()
+	}
+
+	normalized = append(normalized, slabCandidate)
+	sortDoorStyles(normalized)
+	for i := range normalized {
+		normalized[i].Order = i + 1
+	}
+
+	return normalized
+}
+
+func normalizeJobForStorage(job Job) Job {
+	if strings.TrimSpace(job.ID) == "" {
+		job.ID = uuid.NewString()
+	}
+
+	job.CustomerName = strings.TrimSpace(job.CustomerName)
+	job.Name = strings.TrimSpace(job.Name)
+	job.ProductionStatus = normalizeProductionStatus(job.ProductionStatus)
+	job.DefaultStyleID = strings.TrimSpace(job.DefaultStyleID)
+	job.DefaultOverlayCategoryID = strings.TrimSpace(job.DefaultOverlayCategoryID)
+	job.DoorType = normalizeDoorType(job.DoorType)
+	if job.ButtGap <= 0 {
+		job.ButtGap = 0.125
+	}
+	if job.CreatedDate.IsZero() {
+		job.CreatedDate = time.Now().UTC()
+	}
+
+	for i := range job.Doors {
+		if strings.TrimSpace(job.Doors[i].ID) == "" {
+			job.Doors[i].ID = uuid.NewString()
+		}
+		job.Doors[i].Name = strings.TrimSpace(job.Doors[i].Name)
+		job.Doors[i].DoorType = normalizeDoorType(job.Doors[i].DoorType)
+		job.Doors[i].OverlayType = normalizeOverlayType(job.Doors[i].OverlayType)
+		if job.Doors[i].ButtGap <= 0 {
+			job.Doors[i].ButtGap = 0.125
+		}
+	}
+
+	return job
 }
 
 func nextDoorStyleOrder(styles []DoorStyle) int {
@@ -1016,13 +1354,25 @@ func sortDoorStyles(styles []DoorStyle) {
 			return leftHasOrder
 		}
 
-		leftName := strings.ToLower(strings.TrimSpace(styles[i].Name))
-		rightName := strings.ToLower(strings.TrimSpace(styles[j].Name))
-		if leftName == rightName {
-			return styles[i].ID < styles[j].ID
+		leftFamily := strings.ToLower(strings.TrimSpace(styles[i].Family))
+		rightFamily := strings.ToLower(strings.TrimSpace(styles[j].Family))
+		if leftFamily != rightFamily {
+			return leftFamily < rightFamily
 		}
 
-		return leftName < rightName
+		leftVariant := strings.ToLower(strings.TrimSpace(styles[i].Variant))
+		rightVariant := strings.ToLower(strings.TrimSpace(styles[j].Variant))
+		if leftVariant != rightVariant {
+			return leftVariant < rightVariant
+		}
+
+		leftName := strings.ToLower(strings.TrimSpace(styles[i].Name))
+		rightName := strings.ToLower(strings.TrimSpace(styles[j].Name))
+		if leftName != rightName {
+			return leftName < rightName
+		}
+
+		return styles[i].ID < styles[j].ID
 	})
 }
 
@@ -1173,6 +1523,8 @@ func defaultSlabDoorStyle() DoorStyle {
 	return DoorStyle{
 		ID:             defaultSlabStyleID,
 		Name:           "Slab",
+		Family:         "Slab",
+		Variant:        "",
 		IsSlab:         true,
 		Order:          1,
 		StileWidth:     0,

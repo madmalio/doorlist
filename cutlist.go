@@ -229,6 +229,18 @@ func resolveDoorOverlays(door DoorEntry, job Job) (float64, float64, float64, fl
 }
 
 func buildCutLabel(item CutListItem) string {
+	if item.Part == "Slab" {
+		if item.Width > 0 && item.Thickness > 0 {
+			return fmt.Sprintf("%dx %s %s x %s x %s", item.Qty, item.Part, item.LengthFormatted, item.WidthFormatted, item.ThicknessFormatted)
+		}
+
+		if item.Width > 0 {
+			return fmt.Sprintf("%dx %s %s x %s", item.Qty, item.Part, item.LengthFormatted, item.WidthFormatted)
+		}
+
+		return fmt.Sprintf("%dx %s %s", item.Qty, item.Part, item.LengthFormatted)
+	}
+
 	if item.Width > 0 && item.Thickness > 0 {
 		return fmt.Sprintf("%dx %s - %s x %s x %s", item.Qty, item.Part, item.LengthFormatted, item.WidthFormatted, item.ThicknessFormatted)
 	}

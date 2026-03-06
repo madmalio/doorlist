@@ -18,6 +18,18 @@ export function DeleteJob(arg1) {
   return window['go']['main']['App']['DeleteJob'](arg1);
 }
 
+export function ExportAllData() {
+  return window['go']['main']['App']['ExportAllData']();
+}
+
+export function ExportCatalogData() {
+  return window['go']['main']['App']['ExportCatalogData']();
+}
+
+export function ExportOverlayData() {
+  return window['go']['main']['App']['ExportOverlayData']();
+}
+
 export function GenerateCutList(arg1) {
   return window['go']['main']['App']['GenerateCutList'](arg1);
 }
@@ -40,6 +52,18 @@ export function GetOverlayPresets() {
 
 export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
+}
+
+export function ImportAllData(arg1) {
+  return window['go']['main']['App']['ImportAllData'](arg1);
+}
+
+export function ImportCatalogData(arg1) {
+  return window['go']['main']['App']['ImportCatalogData'](arg1);
+}
+
+export function ImportOverlayData(arg1) {
+  return window['go']['main']['App']['ImportOverlayData'](arg1);
 }
 
 export function LoadDoorStyles() {
@@ -80,4 +104,8 @@ export function UpdateJob(arg1, arg2) {
 
 export function UpdateSettings(arg1) {
   return window['go']['main']['App']['UpdateSettings'](arg1);
+}
+
+export function WipeAllData() {
+  return window['go']['main']['App']['WipeAllData']();
 }

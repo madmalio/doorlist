@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Check, ChevronDown, ChevronRight, DoorOpen, Monitor, Moon, Pencil, Plus, Save, Sun, SunMoon, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Database, DoorOpen, Download, Monitor, Moon, Pencil, Plus, Save, Sun, SunMoon, Trash2, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useTheme } from '../ui/ThemeProvider';
 import { cn } from '../../lib/utils';
-import { GetOverlayCategories, SaveOverlayCategories } from '../../../wailsjs/go/main/App';
+import { ExportAllData, ExportCatalogData, ExportOverlayData, GetOverlayCategories, ImportAllData, ImportCatalogData, ImportOverlayData, SaveOverlayCategories, WipeAllData } from '../../../wailsjs/go/main/App';
 import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { useToast } from '../ui/Toast';
+import { Modal } from '../ui/Modal';
 
 const themeOptions = [
   { value: 'light', label: 'Light', description: 'Bright interface for daytime use.', Icon: Sun },
@@ -42,6 +43,7 @@ function createOverlayItem() {
 }
 
 const overlayCollapsedStorageKey = 'doorlist:overlay-defaults:collapsed-categories';
+const wipeConfirmPhrase = 'WIPE ALL DATA';
 
 function readCollapsedCategoryIds(storageKey) {
   try {
@@ -100,7 +102,20 @@ export function SettingsView() {
   const [editingItemDraft, setEditingItemDraft] = useState(null);
 
   const [isSavingOverlays, setIsSavingOverlays] = useState(false);
+  const [isImportingCatalog, setIsImportingCatalog] = useState(false);
+  const [isImportingOverlay, setIsImportingOverlay] = useState(false);
+  const [isImportingBackup, setIsImportingBackup] = useState(false);
+  const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
+  const [pendingImportKind, setPendingImportKind] = useState('');
+  const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [isWipingData, setIsWipingData] = useState(false);
+  const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
+  const [wipeConfirmText, setWipeConfirmText] = useState('');
+  const catalogImportRef = useRef(null);
+  const overlayImportRef = useRef(null);
+  const backupImportRef = useRef(null);
   const { showToast } = useToast();
+  const isWipeConfirmed = wipeConfirmText.trim() === wipeConfirmPhrase;
 
   useEffect(() => {
     const loadOverlayCategories = async () => {
@@ -314,6 +329,168 @@ export function SettingsView() {
     }
   };
 
+  const downloadJson = (filenamePrefix, payload) => {
+    const dateText = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filenamePrefix}-${dateText}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCatalog = async () => {
+    try {
+      const payload = await ExportCatalogData();
+      downloadJson('cutlogic-catalog', payload);
+      showToast('Catalog exported', 'success');
+    } catch (error) {
+      showToast('Failed to export catalog', 'error');
+    }
+  };
+
+  const startImportConfirmation = (kind, file) => {
+    if (!file) {
+      return;
+    }
+
+    setPendingImportKind(kind);
+    setPendingImportFile(file);
+    setIsImportConfirmOpen(true);
+  };
+
+  const handleImportCatalogFile = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    setIsImportingCatalog(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const styles = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.styles) ? parsed.styles : []);
+      await ImportCatalogData({ version: 1, styles, exportedAt: parsed?.exportedAt || undefined });
+      showToast('Catalog imported', 'success');
+    } catch (error) {
+      showToast('Failed to import catalog JSON', 'error');
+    } finally {
+      setIsImportingCatalog(false);
+      if (catalogImportRef.current) {
+        catalogImportRef.current.value = '';
+      }
+    }
+  };
+
+  const handleExportOverlay = async () => {
+    try {
+      const payload = await ExportOverlayData();
+      downloadJson('cutlogic-overlay', payload);
+      showToast('Overlay defaults exported', 'success');
+    } catch (error) {
+      showToast('Failed to export overlay defaults', 'error');
+    }
+  };
+
+  const handleImportOverlayFile = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    setIsImportingOverlay(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const categories = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.overlayCategories) ? parsed.overlayCategories : []);
+      const saved = await ImportOverlayData({ version: 1, overlayCategories: categories, exportedAt: parsed?.exportedAt || undefined });
+      setOverlayCategories((saved || []).map((category) => normalizeCategory(category)));
+      showToast('Overlay defaults imported', 'success');
+    } catch (error) {
+      showToast('Failed to import overlay defaults JSON', 'error');
+    } finally {
+      setIsImportingOverlay(false);
+      if (overlayImportRef.current) {
+        overlayImportRef.current.value = '';
+      }
+    }
+  };
+
+  const handleExportAllData = async () => {
+    try {
+      const payload = await ExportAllData();
+      downloadJson('cutlogic-backup', payload);
+      showToast('Full backup exported', 'success');
+    } catch (error) {
+      showToast('Failed to export full backup', 'error');
+    }
+  };
+
+  const handleImportAllDataFile = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    setIsImportingBackup(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      await ImportAllData(parsed);
+      const categories = await GetOverlayCategories();
+      setOverlayCategories((categories || []).map((category) => normalizeCategory(category)));
+      showToast('Full backup imported', 'success');
+    } catch (error) {
+      showToast('Failed to import full backup JSON', 'error');
+    } finally {
+      setIsImportingBackup(false);
+      if (backupImportRef.current) {
+        backupImportRef.current.value = '';
+      }
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    const kind = pendingImportKind;
+    const file = pendingImportFile;
+
+    setIsImportConfirmOpen(false);
+    setPendingImportKind('');
+    setPendingImportFile(null);
+
+    if (!file) {
+      return;
+    }
+
+    if (kind === 'catalog') {
+      await handleImportCatalogFile(file);
+      return;
+    }
+    if (kind === 'overlay') {
+      await handleImportOverlayFile(file);
+      return;
+    }
+    if (kind === 'backup') {
+      await handleImportAllDataFile(file);
+    }
+  };
+
+  const handleWipeAllData = async () => {
+    setIsWipingData(true);
+    try {
+      await WipeAllData();
+      const categories = await GetOverlayCategories();
+      setOverlayCategories((categories || []).map((category) => normalizeCategory(category)));
+      setWipeConfirmText('');
+      setIsWipeModalOpen(false);
+      showToast('All app data wiped', 'success');
+    } catch (error) {
+      showToast('Failed to wipe all app data', 'error');
+    } finally {
+      setIsWipingData(false);
+    }
+  };
+
   const renderItemList = (category, group, title) => {
     const items = getCategoryItems(category, group);
     const showAddingRow = addingItemTarget?.categoryId === category.id && addingItemTarget?.group === group;
@@ -439,12 +616,25 @@ export function SettingsView() {
               <DoorOpen size={16} />
               Overlay Defaults
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveSection('data')}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+                activeSection === 'data'
+                  ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800',
+              )}
+            >
+              <Database size={16} />
+              Data
+            </button>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : 'Overlay Defaults'}</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'data' ? 'Data Management' : 'Overlay Defaults'}</h3>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeSection === 'theme' ? (
@@ -490,6 +680,104 @@ export function SettingsView() {
                 </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">Theme previews apply instantly and save automatically.</p>
               </>
+            ) : activeSection === 'data' ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Catalog JSON</h4>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import catalog styles (door style families and variants).</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => void handleExportCatalog()}>
+                      <Download size={16} className="mr-2" />
+                      Export JSON
+                    </Button>
+                    <Button variant="secondary" onClick={() => catalogImportRef.current?.click()} disabled={isImportingCatalog}>
+                      <Upload size={16} className="mr-2" />
+                      {isImportingCatalog ? 'Importing...' : 'Import JSON'}
+                    </Button>
+                    <input
+                      ref={catalogImportRef}
+                      type="file"
+                      accept="application/json,.json"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        startImportConfirmation('catalog', file || null);
+                        event.target.value = '';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Overlay JSON</h4>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import overlay default categories and their door/drawer items.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => void handleExportOverlay()}>
+                      <Download size={16} className="mr-2" />
+                      Export JSON
+                    </Button>
+                    <Button variant="secondary" onClick={() => overlayImportRef.current?.click()} disabled={isImportingOverlay}>
+                      <Upload size={16} className="mr-2" />
+                      {isImportingOverlay ? 'Importing...' : 'Import JSON'}
+                    </Button>
+                    <input
+                      ref={overlayImportRef}
+                      type="file"
+                      accept="application/json,.json"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        startImportConfirmation('overlay', file || null);
+                        event.target.value = '';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Full Backup JSON</h4>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export all app data to one file. Import replaces current jobs, catalog, and overlays.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => void handleExportAllData()}>
+                      <Download size={16} className="mr-2" />
+                      Export All Data
+                    </Button>
+                    <Button variant="secondary" onClick={() => backupImportRef.current?.click()} disabled={isImportingBackup}>
+                      <Upload size={16} className="mr-2" />
+                      {isImportingBackup ? 'Importing Backup...' : 'Import All Data'}
+                    </Button>
+                    <input
+                      ref={backupImportRef}
+                      type="file"
+                      accept="application/json,.json"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        startImportConfirmation('backup', file || null);
+                        event.target.value = '';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-rose-300/80 bg-rose-50 p-4 dark:border-rose-900/80 dark:bg-rose-950/20">
+                  <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-300">Danger Zone</h4>
+                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">Permanently wipe all jobs, catalog styles, and overlay defaults.</p>
+                  <div className="mt-4">
+                    <Button
+                      variant="danger"
+                      onClick={() => {
+                        setWipeConfirmText('');
+                        setIsWipeModalOpen(true);
+                      }}
+                      disabled={isWipingData || isImportingBackup}
+                    >
+                      <AlertTriangle size={16} className="mr-2" />
+                      {isWipingData ? 'Wiping Data...' : 'Wipe All Data'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             ) : (
               <>
                 <div className="flex items-center justify-between gap-4">
@@ -582,6 +870,87 @@ export function SettingsView() {
           </CardContent>
         </Card>
       </div>
+
+      <Modal
+        isOpen={isImportConfirmOpen}
+        onClose={() => {
+          if (!isImportingCatalog && !isImportingOverlay && !isImportingBackup) {
+            setIsImportConfirmOpen(false);
+            setPendingImportKind('');
+            setPendingImportFile(null);
+          }
+        }}
+        title="Confirm Import"
+      >
+        <div className="space-y-4">
+          <p className="text-zinc-700 dark:text-zinc-300">
+            {pendingImportKind === 'catalog'
+              ? 'Importing catalog JSON will replace all existing catalog styles.'
+              : pendingImportKind === 'overlay'
+                ? 'Importing overlay JSON will replace all existing overlay defaults.'
+                : 'Importing full backup will replace all current app data.'}
+          </p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">This action cannot be undone.</p>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsImportConfirmOpen(false);
+                setPendingImportKind('');
+                setPendingImportFile(null);
+              }}
+              disabled={isImportingCatalog || isImportingOverlay || isImportingBackup}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => void handleConfirmImport()}
+              disabled={isImportingCatalog || isImportingOverlay || isImportingBackup}
+            >
+              {isImportingCatalog || isImportingOverlay || isImportingBackup ? 'Importing...' : 'Import and Replace'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isWipeModalOpen}
+        onClose={() => {
+          if (!isWipingData) {
+            setWipeConfirmText('');
+            setIsWipeModalOpen(false);
+          }
+        }}
+        title="Wipe All Data"
+      >
+        <div className="space-y-4">
+          <p className="text-zinc-700 dark:text-zinc-300">
+            This permanently deletes all jobs, catalog styles, and overlay defaults.
+          </p>
+          <Input
+            label={`Type ${wipeConfirmPhrase} to confirm`}
+            value={wipeConfirmText}
+            onChange={(event) => setWipeConfirmText(event.target.value)}
+            placeholder={wipeConfirmPhrase}
+          />
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setWipeConfirmText('');
+                setIsWipeModalOpen(false);
+              }}
+              disabled={isWipingData}
+            >
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={() => void handleWipeAllData()} disabled={isWipingData || !isWipeConfirmed}>
+              {isWipingData ? 'Wiping Data...' : 'Wipe All Data'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </section>
   );
 }

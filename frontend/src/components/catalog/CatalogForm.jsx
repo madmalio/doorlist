@@ -5,7 +5,8 @@ import { MeasurementInput } from '../ui/MeasurementInput';
 import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
 
 const emptyForm = {
-  name: '',
+  family: '',
+  variant: 'Standard',
   stileWidth: '2',
   railWidth: '2',
   tenonLength: '3/8',
@@ -13,26 +14,31 @@ const emptyForm = {
   panelGap: '1/8',
 };
 
-export function CatalogForm({ style, onSubmit, onCancel }) {
+export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
   const [formData, setFormData] = useState(emptyForm);
   const [errors, setErrors] = useState({});
+  const isSlabFamily = formData.family.trim().toLowerCase() === 'slab';
 
   useEffect(() => {
     if (!style) {
-      setFormData(emptyForm);
+      setFormData({
+        ...emptyForm,
+        family: initialFamily || '',
+      });
       setErrors({});
       return;
     }
 
     setFormData({
-      name: style.name || '',
+      family: style.family || style.name || '',
+      variant: style.variant || 'Standard',
       stileWidth: formatMeasurement(style.stileWidth),
       railWidth: formatMeasurement(style.railWidth),
       tenonLength: formatMeasurement(style.tenonLength),
       panelThickness: formatMeasurement(style.panelThickness),
       panelGap: formatMeasurement(style.panelGap),
     });
-  }, [style]);
+  }, [style, initialFamily]);
 
   const onChange = (event) => {
     const { name, value } = event.target;
@@ -42,7 +48,7 @@ export function CatalogForm({ style, onSubmit, onCancel }) {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    if (!formData.name.trim()) {
+    if (!formData.family.trim()) {
       return;
     }
 
@@ -68,7 +74,8 @@ export function CatalogForm({ style, onSubmit, onCancel }) {
     }
 
     onSubmit({
-      name: formData.name.trim(),
+      family: formData.family.trim(),
+      variant: isSlabFamily ? '' : (formData.variant.trim() || 'Standard'),
       stileWidth: parsed.stileWidth,
       railWidth: parsed.railWidth,
       tenonLength: parsed.tenonLength,
@@ -79,7 +86,17 @@ export function CatalogForm({ style, onSubmit, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Input label="Style Name" name="name" value={formData.name} onChange={onChange} required placeholder="Standard Shaker" />
+      <div className="grid grid-cols-2 gap-3">
+        <Input label="Style Family" name="family" value={formData.family} onChange={onChange} required placeholder="Shaker" />
+        <Input
+          label="Variant"
+          name="variant"
+          value={isSlabFamily ? '' : formData.variant}
+          onChange={onChange}
+          placeholder={isSlabFamily ? 'Not used for Slab' : '2 1/4'}
+          disabled={isSlabFamily}
+        />
+      </div>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">Use fractions like 1 1/2 or decimals like 1.5.</p>
       <div className="grid grid-cols-2 gap-3">
         <MeasurementInput

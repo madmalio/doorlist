@@ -1,5 +1,140 @@
 export namespace main {
 	
+	export class DoorEntry {
+	    id: string;
+	    name: string;
+	    qty: number;
+	    opWidth: number;
+	    opHeight: number;
+	    styleId: string;
+	    overlayType: string;
+	    overlaySubcategoryId: string;
+	    customOverlay: number;
+	    doorType: string;
+	    buttGap: number;
+	    useCustomOverlay: boolean;
+	    overlayLeft: number;
+	    overlayRight: number;
+	    overlayTop: number;
+	    overlayBottom: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DoorEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.qty = source["qty"];
+	        this.opWidth = source["opWidth"];
+	        this.opHeight = source["opHeight"];
+	        this.styleId = source["styleId"];
+	        this.overlayType = source["overlayType"];
+	        this.overlaySubcategoryId = source["overlaySubcategoryId"];
+	        this.customOverlay = source["customOverlay"];
+	        this.doorType = source["doorType"];
+	        this.buttGap = source["buttGap"];
+	        this.useCustomOverlay = source["useCustomOverlay"];
+	        this.overlayLeft = source["overlayLeft"];
+	        this.overlayRight = source["overlayRight"];
+	        this.overlayTop = source["overlayTop"];
+	        this.overlayBottom = source["overlayBottom"];
+	    }
+	}
+	export class Job {
+	    id: string;
+	    customerName: string;
+	    name: string;
+	    productionStatus: string;
+	    defaultStyleId: string;
+	    defaultOverlayCategoryId: string;
+	    doorType: string;
+	    buttGap: number;
+	    useCustomOverlay: boolean;
+	    overlayLeft: number;
+	    overlayRight: number;
+	    overlayTop: number;
+	    overlayBottom: number;
+	    defaultOverlay: number;
+	    // Go type: time
+	    createdDate: any;
+	    doors: DoorEntry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Job(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.customerName = source["customerName"];
+	        this.name = source["name"];
+	        this.productionStatus = source["productionStatus"];
+	        this.defaultStyleId = source["defaultStyleId"];
+	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
+	        this.doorType = source["doorType"];
+	        this.buttGap = source["buttGap"];
+	        this.useCustomOverlay = source["useCustomOverlay"];
+	        this.overlayLeft = source["overlayLeft"];
+	        this.overlayRight = source["overlayRight"];
+	        this.overlayTop = source["overlayTop"];
+	        this.overlayBottom = source["overlayBottom"];
+	        this.defaultOverlay = source["defaultOverlay"];
+	        this.createdDate = this.convertValues(source["createdDate"], null);
+	        this.doors = this.convertValues(source["doors"], DoorEntry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DoorStyle {
+	    id: string;
+	    name: string;
+	    family?: string;
+	    variant?: string;
+	    isSlab: boolean;
+	    order?: number;
+	    stileWidth: number;
+	    railWidth: number;
+	    tenonLength: number;
+	    panelThickness: number;
+	    panelGap: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DoorStyle(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.family = source["family"];
+	        this.variant = source["variant"];
+	        this.isSlab = source["isSlab"];
+	        this.order = source["order"];
+	        this.stileWidth = source["stileWidth"];
+	        this.railWidth = source["railWidth"];
+	        this.tenonLength = source["tenonLength"];
+	        this.panelThickness = source["panelThickness"];
+	        this.panelGap = source["panelGap"];
+	    }
+	}
 	export class OverlayPreset {
 	    id: string;
 	    name: string;
@@ -118,9 +253,83 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class AppBackupPayload {
+	    version: number;
+	    exportedAt?: string;
+	    settings: AppSettings;
+	    styles: DoorStyle[];
+	    jobs: Job[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AppBackupPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.exportedAt = source["exportedAt"];
+	        this.settings = this.convertValues(source["settings"], AppSettings);
+	        this.styles = this.convertValues(source["styles"], DoorStyle);
+	        this.jobs = this.convertValues(source["jobs"], Job);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class CatalogDataPayload {
+	    version: number;
+	    exportedAt?: string;
+	    styles: DoorStyle[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CatalogDataPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.exportedAt = source["exportedAt"];
+	        this.styles = this.convertValues(source["styles"], DoorStyle);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CreateJobRequest {
 	    customerName: string;
 	    project: string;
+	    productionStatus: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
 	    doorType: string;
@@ -140,6 +349,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.customerName = source["customerName"];
 	        this.project = source["project"];
+	        this.productionStatus = source["productionStatus"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
 	        this.doorType = source["doorType"];
@@ -214,78 +424,12 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class DoorEntry {
-	    id: string;
-	    name: string;
-	    qty: number;
-	    opWidth: number;
-	    opHeight: number;
-	    styleId: string;
-	    overlayType: string;
-	    overlaySubcategoryId: string;
-	    customOverlay: number;
-	    doorType: string;
-	    buttGap: number;
-	    useCustomOverlay: boolean;
-	    overlayLeft: number;
-	    overlayRight: number;
-	    overlayTop: number;
-	    overlayBottom: number;
 	
-	    static createFrom(source: any = {}) {
-	        return new DoorEntry(source);
-	    }
 	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.qty = source["qty"];
-	        this.opWidth = source["opWidth"];
-	        this.opHeight = source["opHeight"];
-	        this.styleId = source["styleId"];
-	        this.overlayType = source["overlayType"];
-	        this.overlaySubcategoryId = source["overlaySubcategoryId"];
-	        this.customOverlay = source["customOverlay"];
-	        this.doorType = source["doorType"];
-	        this.buttGap = source["buttGap"];
-	        this.useCustomOverlay = source["useCustomOverlay"];
-	        this.overlayLeft = source["overlayLeft"];
-	        this.overlayRight = source["overlayRight"];
-	        this.overlayTop = source["overlayTop"];
-	        this.overlayBottom = source["overlayBottom"];
-	    }
-	}
-	export class DoorStyle {
-	    id: string;
-	    name: string;
-	    isSlab: boolean;
-	    order?: number;
-	    stileWidth: number;
-	    railWidth: number;
-	    tenonLength: number;
-	    panelThickness: number;
-	    panelGap: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new DoorStyle(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.isSlab = source["isSlab"];
-	        this.order = source["order"];
-	        this.stileWidth = source["stileWidth"];
-	        this.railWidth = source["railWidth"];
-	        this.tenonLength = source["tenonLength"];
-	        this.panelThickness = source["panelThickness"];
-	        this.panelGap = source["panelGap"];
-	    }
-	}
 	export class DoorStyleRequest {
 	    name: string;
+	    family?: string;
+	    variant?: string;
 	    stileWidth: number;
 	    railWidth: number;
 	    tenonLength: number;
@@ -299,6 +443,8 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
+	        this.family = source["family"];
+	        this.variant = source["variant"];
 	        this.stileWidth = source["stileWidth"];
 	        this.railWidth = source["railWidth"];
 	        this.tenonLength = source["tenonLength"];
@@ -326,65 +472,7 @@ export namespace main {
 	        this.meta = source["meta"];
 	    }
 	}
-	export class Job {
-	    id: string;
-	    customerName: string;
-	    name: string;
-	    defaultStyleId: string;
-	    defaultOverlayCategoryId: string;
-	    doorType: string;
-	    buttGap: number;
-	    useCustomOverlay: boolean;
-	    overlayLeft: number;
-	    overlayRight: number;
-	    overlayTop: number;
-	    overlayBottom: number;
-	    defaultOverlay: number;
-	    // Go type: time
-	    createdDate: any;
-	    doors: DoorEntry[];
 	
-	    static createFrom(source: any = {}) {
-	        return new Job(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.customerName = source["customerName"];
-	        this.name = source["name"];
-	        this.defaultStyleId = source["defaultStyleId"];
-	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
-	        this.doorType = source["doorType"];
-	        this.buttGap = source["buttGap"];
-	        this.useCustomOverlay = source["useCustomOverlay"];
-	        this.overlayLeft = source["overlayLeft"];
-	        this.overlayRight = source["overlayRight"];
-	        this.overlayTop = source["overlayTop"];
-	        this.overlayBottom = source["overlayBottom"];
-	        this.defaultOverlay = source["defaultOverlay"];
-	        this.createdDate = this.convertValues(source["createdDate"], null);
-	        this.doors = this.convertValues(source["doors"], DoorEntry);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
 	export class JobPageRequest {
 	    page: number;
 	    pageSize: number;
@@ -438,11 +526,46 @@ export namespace main {
 		}
 	}
 	
+	export class OverlayDataPayload {
+	    version: number;
+	    exportedAt?: string;
+	    overlayCategories: OverlayCategory[];
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlayDataPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.exportedAt = source["exportedAt"];
+	        this.overlayCategories = this.convertValues(source["overlayCategories"], OverlayCategory);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	
 	export class UpdateJobRequest {
 	    customerName: string;
 	    project: string;
+	    productionStatus: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
 	    doorType: string;
@@ -462,6 +585,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.customerName = source["customerName"];
 	        this.project = source["project"];
+	        this.productionStatus = source["productionStatus"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
 	        this.doorType = source["doorType"];

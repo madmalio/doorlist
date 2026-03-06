@@ -10,6 +10,12 @@ export function DeleteDoorStyle(arg1:string):Promise<void>;
 
 export function DeleteJob(arg1:string):Promise<void>;
 
+export function ExportAllData():Promise<main.AppBackupPayload>;
+
+export function ExportCatalogData():Promise<main.CatalogDataPayload>;
+
+export function ExportOverlayData():Promise<main.OverlayDataPayload>;
+
 export function GenerateCutList(arg1:string):Promise<main.CutListResponse>;
 
 export function GetJob(arg1:string):Promise<main.Job>;
@@ -21,6 +27,12 @@ export function GetOverlayCategories():Promise<Array<main.OverlayCategory>>;
 export function GetOverlayPresets():Promise<Array<main.OverlayPreset>>;
 
 export function GetSettings():Promise<main.AppSettings>;
+
+export function ImportAllData(arg1:main.AppBackupPayload):Promise<main.AppBackupPayload>;
+
+export function ImportCatalogData(arg1:main.CatalogDataPayload):Promise<Array<main.DoorStyle>>;
+
+export function ImportOverlayData(arg1:main.OverlayDataPayload):Promise<Array<main.OverlayCategory>>;
 
 export function LoadDoorStyles():Promise<Array<main.DoorStyle>>;
 
@@ -41,3 +53,5 @@ export function UpdateDoorStyle(arg1:string,arg2:main.DoorStyleRequest):Promise<
 export function UpdateJob(arg1:string,arg2:main.UpdateJobRequest):Promise<main.Job>;
 
 export function UpdateSettings(arg1:main.UpdateSettingsRequest):Promise<main.AppSettings>;
+
+export function WipeAllData():Promise<void>;

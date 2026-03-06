@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
+import { findStyleById, getStyleDisplayName, getStyleFamily, getStyleVariant, getStyleVariantLabel, groupStylesByFamily } from '../../lib/styleCatalog';
 
 function createDoorDraft(defaultStyleId, defaultOverlay) {
   return {
@@ -177,6 +178,45 @@ function getDoorQty(row) {
   return qty;
 }
 
+function renderStyleSelectors(row, updateRow, styleFamilies, styleByID) {
+  const selectedStyle = styleByID.get(row.styleId) || null;
+  const selectedFamily = selectedStyle ? getStyleFamily(selectedStyle) : (styleFamilies[0]?.family || '');
+  const familyStyles = styleFamilies.find((group) => group.family === selectedFamily)?.styles || [];
+
+  return (
+    <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+      <div>
+        <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Style Family</label>
+        <select
+          value={selectedFamily}
+          onChange={(event) => {
+            const nextFamily = event.target.value;
+            const nextStyle = styleFamilies.find((group) => group.family === nextFamily)?.styles?.[0] || null;
+            updateRow('styleId', nextStyle?.id || '');
+          }}
+          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          {styleFamilies.map((group) => (
+            <option key={group.family} value={group.family}>{group.family}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Variant</label>
+        <select
+          value={row.styleId}
+          onChange={(event) => updateRow('styleId', event.target.value)}
+          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          {familyStyles.map((style) => (
+            <option key={style.id} value={style.id}>{getStyleVariantLabel(style)}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function renderDoorSettings(row, updateRow, doorOverlayItems, drawerFrontItems) {
   const overlayType = row.overlayType === 'drawer-front' ? 'drawer-front' : 'door';
   const activeItems = overlayType === 'drawer-front' ? (drawerFrontItems || []) : (doorOverlayItems || []);
@@ -324,7 +364,14 @@ export function JobDetailView({ jobId, onBack }) {
   const [editRow, setEditRow] = useState(null);
   const { showToast } = useToast();
 
-  const styleOptions = useMemo(() => doorStyles.map((style) => ({ value: style.id, label: style.name })), [doorStyles]);
+  const styleFamilies = useMemo(() => groupStylesByFamily(doorStyles || []), [doorStyles]);
+  const styleByID = useMemo(() => {
+    const byID = new Map();
+    for (const style of doorStyles || []) {
+      byID.set(style.id, style);
+    }
+    return byID;
+  }, [doorStyles]);
   const selectedOverlayCategory = useMemo(
     () => overlayCategories.find((category) => category.id === job?.defaultOverlayCategoryId) || null,
     [overlayCategories, job?.defaultOverlayCategoryId],
@@ -568,37 +615,24 @@ export function JobDetailView({ jobId, onBack }) {
           <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Add Door</h3>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="grid grid-cols-[1.2fr_0.45fr_0.8fr_0.8fr_1fr_auto] gap-2">
+          <div className="grid grid-cols-[1.2fr_0.45fr_0.6fr_0.6fr_1.8fr] gap-2">
             <Input label="Door Name" value={draftRow.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Base Left" />
             <Input label="Qty" type="text" inputMode="numeric" value={draftRow.qty} onChange={(event) => updateDraft('qty', event.target.value.replace(/[^0-9]/g, ''))} />
-            <Input label="Opening Width" type="text" inputMode="decimal" value={draftRow.opWidth} onChange={(event) => updateDraft('opWidth', event.target.value)} placeholder="15 1/2" />
-            <Input label="Opening Height" type="text" inputMode="decimal" value={draftRow.opHeight} onChange={(event) => updateDraft('opHeight', event.target.value)} placeholder="30" />
+            <Input label="Opening Width" className="max-w-28" type="text" inputMode="decimal" value={draftRow.opWidth} onChange={(event) => updateDraft('opWidth', event.target.value)} placeholder="15 1/2" />
+            <Input label="Opening Height" className="max-w-28" type="text" inputMode="decimal" value={draftRow.opHeight} onChange={(event) => updateDraft('opHeight', event.target.value)} placeholder="30" />
             <div>
-              <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Door Style</label>
-              <select
-                value={draftRow.styleId}
-                onChange={(event) => updateDraft('styleId', event.target.value)}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-              >
-                <option value="" disabled>
-                  Select style
-                </option>
-                {styleOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end">
-              <Button onClick={() => void addDoorFromDraft()}>
-                <Plus size={14} className="mr-1" />
-                Add
-              </Button>
+                {renderStyleSelectors(draftRow, updateDraft, styleFamilies, styleByID)}
             </div>
           </div>
 
           {renderDoorSettings(draftRow, updateDraft, overlayItems, drawerFrontItems)}
+
+          <div className="flex justify-end">
+            <Button onClick={() => void addDoorFromDraft()}>
+              <Plus size={14} className="mr-1" />
+              Add
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -625,7 +659,13 @@ export function JobDetailView({ jobId, onBack }) {
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const styleName = styleOptions.find((option) => option.value === row.styleId)?.label || '-';
+                    const styleName = (() => {
+                      const selectedStyle = findStyleById(doorStyles || [], row.styleId);
+                      if (!selectedStyle) {
+                        return '-';
+                      }
+                      return getStyleDisplayName(selectedStyle);
+                    })();
                     return (
                       <tr key={row.id} className="border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800">
                         <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">{row.name}</td>
@@ -657,29 +697,14 @@ export function JobDetailView({ jobId, onBack }) {
       <Modal isOpen={isEditModalOpen} onClose={closeEditModal} title="Edit Door" maxWidthClass="max-w-7xl">
         {editRow ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-[1.2fr_0.45fr_0.8fr_0.8fr_1fr_auto] gap-2">
+            <div className="grid grid-cols-[1.2fr_0.45fr_0.6fr_0.6fr_1.8fr] gap-2">
               <Input label="Door Name" value={editRow.name} onChange={(event) => updateEdit('name', event.target.value)} placeholder="Base Left" />
               <Input label="Qty" type="text" inputMode="numeric" value={editRow.qty} onChange={(event) => updateEdit('qty', event.target.value.replace(/[^0-9]/g, ''))} />
-              <Input label="Opening Width" type="text" inputMode="decimal" value={editRow.opWidth} onChange={(event) => updateEdit('opWidth', event.target.value)} placeholder="15 1/2" />
-              <Input label="Opening Height" type="text" inputMode="decimal" value={editRow.opHeight} onChange={(event) => updateEdit('opHeight', event.target.value)} placeholder="30" />
+              <Input label="Opening Width" className="max-w-28" type="text" inputMode="decimal" value={editRow.opWidth} onChange={(event) => updateEdit('opWidth', event.target.value)} placeholder="15 1/2" />
+              <Input label="Opening Height" className="max-w-28" type="text" inputMode="decimal" value={editRow.opHeight} onChange={(event) => updateEdit('opHeight', event.target.value)} placeholder="30" />
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Door Style</label>
-                <select
-                  value={editRow.styleId}
-                  onChange={(event) => updateEdit('styleId', event.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                >
-                  <option value="" disabled>
-                    Select style
-                  </option>
-                  {styleOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                {renderStyleSelectors(editRow, updateEdit, styleFamilies, styleByID)}
               </div>
-              <div />
             </div>
 
             {renderDoorSettings(editRow, updateEdit, overlayItems, drawerFrontItems)}
