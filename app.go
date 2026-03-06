@@ -41,9 +41,16 @@ func (a *App) startup(ctx context.Context) {
 		configDir = "."
 	}
 
-	dataDir := filepath.Join(configDir, "doorlist")
+	dataDir := filepath.Join(configDir, "cutlogic")
 	if mkErr := os.MkdirAll(dataDir, 0o755); mkErr != nil {
 		dataDir = "."
+	}
+
+	if dataDir != "." {
+		legacyDir := filepath.Join(configDir, "doorlist")
+		_ = copyFileIfMissing(filepath.Join(dataDir, "jobs.json"), filepath.Join(legacyDir, "jobs.json"))
+		_ = copyFileIfMissing(filepath.Join(dataDir, "styles.json"), filepath.Join(legacyDir, "styles.json"))
+		_ = copyFileIfMissing(filepath.Join(dataDir, "settings.json"), filepath.Join(legacyDir, "settings.json"))
 	}
 
 	a.jobsPath = filepath.Join(dataDir, "jobs.json")
@@ -69,6 +76,24 @@ func (a *App) startup(ctx context.Context) {
 	a.mu.Lock()
 	_ = a.seedDefaultSlabStyleOnceUnsafe()
 	a.mu.Unlock()
+}
+
+func copyFileIfMissing(dstPath, srcPath string) error {
+	if _, err := os.Stat(dstPath); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	payload, err := os.ReadFile(srcPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(dstPath, payload, 0o644)
 }
 
 type Job struct {

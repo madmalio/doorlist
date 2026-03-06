@@ -4,6 +4,27 @@
     <meta charset="UTF-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>CutLogic</title>
+    <script>
+        (function () {
+            try {
+                var themeKey = 'cutlogic-theme';
+                var storedTheme = window.localStorage.getItem(themeKey);
+                var root = document.documentElement;
+
+                root.classList.remove('light', 'dark');
+
+                if (storedTheme === 'light' || storedTheme === 'dark') {
+                    root.classList.add(storedTheme);
+                    return;
+                }
+
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                root.classList.add(prefersDark ? 'dark' : 'light');
+            } catch (error) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
 </head>
 <body>
 <div id="root"></div>

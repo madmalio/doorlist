@@ -153,7 +153,7 @@ func TestGenerateCutListButtQtyMeansOpeningCount(t *testing.T) {
 	}
 }
 
-func TestGenerateCutListButtCustomSideOverlaySplitsLeafWidths(t *testing.T) {
+func TestGenerateCutListButtCustomSideOverlayKeepsEqualLeafWidths(t *testing.T) {
 	app := &App{}
 
 	style := DoorStyle{
@@ -204,13 +204,13 @@ func TestGenerateCutListButtCustomSideOverlaySplitsLeafWidths(t *testing.T) {
 		}
 	}
 
-	if len(railQtyByLength) != 2 {
-		t.Fatalf("expected two distinct rail lengths for asymmetric butt overlays, got %d", len(railQtyByLength))
+	if len(railQtyByLength) != 1 {
+		t.Fatalf("expected one rail length for butt pair, got %d", len(railQtyByLength))
 	}
 
 	for _, qty := range railQtyByLength {
-		if qty != 2 {
-			t.Fatalf("expected each distinct rail length to have qty 2, got %d", qty)
+		if qty != 4 {
+			t.Fatalf("expected rail qty 4 for two equal leaves, got %d", qty)
 		}
 	}
 }

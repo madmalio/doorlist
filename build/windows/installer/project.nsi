@@ -19,10 +19,10 @@ Unicode true
 ####
 ## The following information is taken from the ProjectInfo file, but they can be overwritten here.
 ####
-## !define INFO_PROJECTNAME    "MyProject" # Default "{{.Name}}"
-## !define INFO_COMPANYNAME    "MyCompany" # Default "{{.Info.CompanyName}}"
-## !define INFO_PRODUCTNAME    "MyProduct" # Default "{{.Info.ProductName}}"
-## !define INFO_PRODUCTVERSION "1.0.0"     # Default "{{.Info.ProductVersion}}"
+!define INFO_PROJECTNAME    "CutLogic"
+!define INFO_COMPANYNAME    "CutLogic"
+!define INFO_PRODUCTNAME    "CutLogic"
+!define INFO_PRODUCTVERSION "1.0.0"
 ## !define INFO_COPYRIGHT      "Copyright" # Default "{{.Info.Copyright}}"
 ###
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
@@ -52,8 +52,16 @@ ManifestDPIAware true
 
 !define MUI_ICON "..\icon.ico"
 !define MUI_UNICON "..\icon.ico"
-# !define MUI_WELCOMEFINISHPAGE_BITMAP "resources\leftimage.bmp" #Include this to add a bitmap on the left side of the Welcome Page. Must be a size of 164x314
-!define MUI_FINISHPAGE_NOAUTOCLOSE # Wait on the INSTFILES page so the user can take a look into the details of the installation steps
+!define MUI_WELCOMEFINISHPAGE_BITMAP "resources\cutlogic-welcome.bmp"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_RIGHT
+!define MUI_HEADERIMAGE_BITMAP "resources\cutlogic-header.bmp"
+!define MUI_WELCOMEPAGE_TITLE "Welcome to CutLogic Setup"
+!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of CutLogic.$\r$\n$\r$\nClick Next to continue."
+!define MUI_FINISHPAGE_TITLE "CutLogic is ready"
+!define MUI_FINISHPAGE_TEXT "CutLogic has been installed successfully on your computer."
+!define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXECUTABLE}"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch CutLogic"
 !define MUI_ABORTWARNING # This will warn the user if they exit from the installer.
 
 !insertmacro MUI_PAGE_WELCOME # Welcome to the installer page.
@@ -71,9 +79,11 @@ ManifestDPIAware true
 #!finalize 'signtool --file "%1"'
 
 Name "${INFO_PRODUCTNAME}"
+BrandingText "CutLogic Installer"
 OutFile "..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe" # Name of the installer's file.
 InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}" # Default installing folder ($PROGRAMFILES is Program Files folder).
-ShowInstDetails show # This will always show the installation details.
+ShowInstDetails nevershow
+ShowUnInstDetails nevershow
 
 Function .onInit
    !insertmacro wails.checkArchitecture

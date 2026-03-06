@@ -85,14 +85,14 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 				gap = 0.125
 			}
 
-			clearOpeningWidth := door.OpWidth - gap
-			if clearOpeningWidth <= 0 {
+			totalFinishedWidth := door.OpWidth + overlayLeft + overlayRight
+			clearPairWidth := totalFinishedWidth - gap
+			if clearPairWidth <= 0 {
 				continue
 			}
 
-			leafOpeningWidth := clearOpeningWidth / 2.0
-			leftLeafFW := leafOpeningWidth + overlayLeft
-			rightLeafFW := leafOpeningWidth + overlayRight
+			leafFinishedWidth := clearPairWidth / 2.0
+			leafQty := door.Qty * 2
 
 			style, ok := styleByID[door.StyleID]
 			if !ok {
@@ -100,13 +100,11 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 			}
 
 			if style.IsSlab {
-				addSlabParts(groups, door.Qty, leftLeafFW, finishedHeight, style.PanelThickness)
-				addSlabParts(groups, door.Qty, rightLeafFW, finishedHeight, style.PanelThickness)
+				addSlabParts(groups, leafQty, leafFinishedWidth, finishedHeight, style.PanelThickness)
 				continue
 			}
 
-			addLeafParts(groups, style, door.Qty, leftLeafFW, finishedHeight)
-			addLeafParts(groups, style, door.Qty, rightLeafFW, finishedHeight)
+			addLeafParts(groups, style, leafQty, leafFinishedWidth, finishedHeight)
 			continue
 		}
 
