@@ -232,10 +232,17 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
     try {
       const cutList = await GenerateCutList(job.id);
       const items = Array.isArray(cutList?.items) ? cutList.items : [];
+      const openingCount = Array.isArray(job?.doors)
+        ? job.doors.reduce((sum, door) => {
+            const qty = Number(door?.qty) || 0;
+            return sum + (qty > 0 ? qty : 0);
+          }, 0)
+        : 0;
       const printed = await printCutList({
         customerName: job.customerName,
         jobName: job.name,
         items,
+        openingCount,
       });
       if (!printed) {
         showToast("No printable cut list sections found", "error");

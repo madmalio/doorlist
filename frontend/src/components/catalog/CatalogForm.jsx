@@ -7,6 +7,7 @@ import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
 const emptyForm = {
   family: '',
   variant: 'Standard',
+  styleUse: 'both',
   stileWidth: '2',
   railWidth: '2',
   tenonLength: '3/8',
@@ -17,13 +18,14 @@ const emptyForm = {
 export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
   const [formData, setFormData] = useState(emptyForm);
   const [errors, setErrors] = useState({});
-  const isSlabFamily = formData.family.trim().toLowerCase() === 'slab';
+  const familyValue = typeof formData.family === 'string' ? formData.family : '';
+  const isSlabFamily = familyValue.trim().toLowerCase() === 'slab';
 
   useEffect(() => {
     if (!style) {
       setFormData({
         ...emptyForm,
-        family: initialFamily || '',
+        family: typeof initialFamily === 'string' ? initialFamily : '',
       });
       setErrors({});
       return;
@@ -32,6 +34,7 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
     setFormData({
       family: style.family || style.name || '',
       variant: style.variant || 'Standard',
+      styleUse: style.styleUse || 'both',
       stileWidth: formatMeasurement(style.stileWidth),
       railWidth: formatMeasurement(style.railWidth),
       tenonLength: formatMeasurement(style.tenonLength),
@@ -76,6 +79,7 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
     onSubmit({
       family: formData.family.trim(),
       variant: isSlabFamily ? '' : (formData.variant.trim() || 'Standard'),
+      styleUse: isSlabFamily ? 'both' : (formData.styleUse || 'both'),
       stileWidth: parsed.stileWidth,
       railWidth: parsed.railWidth,
       tenonLength: parsed.tenonLength,
@@ -96,6 +100,23 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           placeholder={isSlabFamily ? 'Not used for Slab' : '2 1/4'}
           disabled={isSlabFamily}
         />
+      </div>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300" htmlFor="styleUse">
+          Applies To
+        </label>
+        <select
+          id="styleUse"
+          name="styleUse"
+          value={isSlabFamily ? 'both' : formData.styleUse}
+          onChange={onChange}
+          disabled={isSlabFamily}
+          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+          <option value="both">Both</option>
+          <option value="door">Door</option>
+          <option value="drawer-front">Drawer Front</option>
+        </select>
       </div>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">Use fractions like 1 1/2 or decimals like 1.5.</p>
       <div className="grid grid-cols-2 gap-3">

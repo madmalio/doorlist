@@ -215,6 +215,103 @@ func TestGenerateCutListButtCustomSideOverlayKeepsEqualLeafWidths(t *testing.T) 
 	}
 }
 
+func TestGenerateCutListTwoPanelVerticalAddsThreeRailsAndTwoPanels(t *testing.T) {
+	app := &App{}
+
+	style := DoorStyle{
+		ID:             "style-1",
+		Name:           "Standard Shaker",
+		StileWidth:     2,
+		RailWidth:      2,
+		TenonLength:    0.375,
+		PanelThickness: 0.25,
+		PanelGap:       0.125,
+	}
+
+	jobs := []Job{
+		{
+			ID:             "job-1",
+			Name:           "Kitchen",
+			DefaultOverlay: 0.5,
+			Doors: []DoorEntry{
+				{ID: "d1", Qty: 1, OpWidth: 20, OpHeight: 40, StyleID: "style-1", PanelLayout: "two-panel-vertical"},
+			},
+		},
+	}
+
+	setupFiles(t, app, jobs, []DoorStyle{style})
+
+	resp, err := app.GenerateCutList("job-1")
+	if err != nil {
+		t.Fatalf("GenerateCutList() error = %v", err)
+	}
+
+	parts := map[string]CutListItem{}
+	for _, item := range resp.Items {
+		parts[item.Part] = item
+	}
+
+	if got := parts["Stile"].Qty; got != 2 {
+		t.Fatalf("expected stile qty 2, got %d", got)
+	}
+	if got := parts["Rail"].Qty; got != 3 {
+		t.Fatalf("expected rail qty 3, got %d", got)
+	}
+	if got := parts["Panel"].Qty; got != 2 {
+		t.Fatalf("expected panel qty 2, got %d", got)
+	}
+}
+
+func TestGenerateCutListTwoPanelHorizontalAddsVerticalRailAndTwoPanels(t *testing.T) {
+	app := &App{}
+
+	style := DoorStyle{
+		ID:             "style-1",
+		Name:           "Standard Shaker",
+		StileWidth:     2,
+		RailWidth:      2,
+		TenonLength:    0.375,
+		PanelThickness: 0.25,
+		PanelGap:       0.125,
+	}
+
+	jobs := []Job{
+		{
+			ID:             "job-1",
+			Name:           "Kitchen",
+			DefaultOverlay: 0.5,
+			Doors: []DoorEntry{
+				{ID: "d1", Qty: 1, OpWidth: 30, OpHeight: 30, StyleID: "style-1", PanelLayout: "two-panel-horizontal"},
+			},
+		},
+	}
+
+	setupFiles(t, app, jobs, []DoorStyle{style})
+
+	resp, err := app.GenerateCutList("job-1")
+	if err != nil {
+		t.Fatalf("GenerateCutList() error = %v", err)
+	}
+
+	parts := map[string]CutListItem{}
+	for _, item := range resp.Items {
+		parts[item.Part] = item
+	}
+
+	if got := parts["Stile"].Qty; got != 2 {
+		t.Fatalf("expected stile qty 2, got %d", got)
+	}
+	if got := parts["Rail"].Qty; got != 2 {
+		t.Fatalf("expected rail qty 2, got %d", got)
+	}
+	if got := parts["Vertical Rail"].Qty; got != 1 {
+		t.Fatalf("expected vertical rail qty 1, got %d", got)
+	}
+	if got := parts["Panel"].Qty; got != 2 {
+		t.Fatalf("expected panel qty 2, got %d", got)
+	}
+}
+
 func TestGenerateCutListSlabOnlyOutputsFinishedSizes(t *testing.T) {
 	app := &App{}
 
@@ -255,6 +352,59 @@ func TestGenerateCutListSlabOnlyOutputsFinishedSizes(t *testing.T) {
 	}
 	if item.LengthFormatted != "31" || item.WidthFormatted != "21" {
 		t.Fatalf("expected slab finished size 31 x 21, got %s x %s", item.LengthFormatted, item.WidthFormatted)
+	}
+}
+
+func TestGenerateCutListSlabSeparatesUseAndGrainGroups(t *testing.T) {
+	app := &App{}
+
+	slabStyle := DoorStyle{
+		ID:     "slab-style",
+		Name:   "Slab",
+		IsSlab: true,
+	}
+
+	jobs := []Job{
+		{
+			ID:             "job-1",
+			Name:           "Kitchen",
+			DefaultOverlay: 0.5,
+			Doors: []DoorEntry{
+				{ID: "d1", Qty: 1, OpWidth: 20, OpHeight: 30, StyleID: "slab-style", CustomOverlay: 0.5, OverlayType: "door", SlabGrain: "vertical"},
+				{ID: "d2", Qty: 1, OpWidth: 20, OpHeight: 30, StyleID: "slab-style", CustomOverlay: 0.5, OverlayType: "door", SlabGrain: "horizontal"},
+				{ID: "d3", Qty: 1, OpWidth: 20, OpHeight: 30, StyleID: "slab-style", CustomOverlay: 0.5, OverlayType: "drawer-front", SlabGrain: "mdf"},
+			},
+		},
+	}
+
+	setupFiles(t, app, jobs, []DoorStyle{slabStyle})
+
+	resp, err := app.GenerateCutList("job-1")
+	if err != nil {
+		t.Fatalf("GenerateCutList() error = %v", err)
+	}
+
+	slabGroups := map[string]int{}
+	for _, item := range resp.Items {
+		if item.Part != "Slab" {
+			continue
+		}
+		key := item.SlabUse + "|" + item.SlabGrain
+		slabGroups[key] += item.Qty
+	}
+
+	if len(slabGroups) != 3 {
+		t.Fatalf("expected three slab groups by use/grain, got %d", len(slabGroups))
+	}
+
+	if slabGroups["door|vertical"] != 1 {
+		t.Fatalf("expected door vertical slab qty 1, got %d", slabGroups["door|vertical"])
+	}
+	if slabGroups["door|horizontal"] != 1 {
+		t.Fatalf("expected door horizontal slab qty 1, got %d", slabGroups["door|horizontal"])
+	}
+	if slabGroups["drawer-front|mdf"] != 1 {
+		t.Fatalf("expected drawer-front mdf slab qty 1, got %d", slabGroups["drawer-front|mdf"])
 	}
 }
 

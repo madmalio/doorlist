@@ -34,6 +34,28 @@ function getFrameLinearFeetLabel(items) {
   return totalFeet.toFixed(2);
 }
 
+function formatSlabUse(value) {
+  return value === "drawer-front" ? "Drawer Front" : "Door";
+}
+
+function formatSlabGrain(value) {
+  if (value === "vertical") {
+    return "Vertical";
+  }
+  if (value === "horizontal") {
+    return "Horizontal";
+  }
+  return "MDF";
+}
+
+function getPartDisplay(item) {
+  if (item.part !== "Slab") {
+    return item.part;
+  }
+
+  return `${formatSlabUse(item.slabUse)} - ${formatSlabGrain(item.slabGrain)}`;
+}
+
 function buildSections(items) {
   const frameItems = items.filter((item) => item.part === "Stile" || item.part === "Rail");
   const slabItems = items.filter((item) => item.part === "Slab");
@@ -64,14 +86,14 @@ function buildSections(items) {
   ].filter((section) => section.items.length > 0);
 }
 
-function buildDocumentHtml({ customerName, jobName, sections }) {
+function buildDocumentHtml({ customerName, jobName, sections, compactMode }) {
   const sectionHtml = sections
     .map((section) => {
       const rows = section.items
         .map(
           (item) => `
             <tr>
-              <td>${escapeHtml(item.part)}</td>
+              <td>${escapeHtml(getPartDisplay(item))}</td>
               <td>${escapeHtml(item.qty)}</td>
               <td>${escapeHtml(item.widthFormatted || "-")}</td>
               <td>${escapeHtml(item.lengthFormatted || "-")}</td>
@@ -155,6 +177,11 @@ function buildDocumentHtml({ customerName, jobName, sections }) {
           break-after: auto;
           page-break-after: auto;
         }
+        .root.compact .cutlist-section {
+          break-after: auto;
+          page-break-after: auto;
+          margin-bottom: 10px;
+        }
         .section-head {
           margin: 0 0 8px;
           display: flex;
@@ -198,7 +225,7 @@ function buildDocumentHtml({ customerName, jobName, sections }) {
       </style>
     </head>
     <body>
-      <main class="root">
+      <main class="root${compactMode ? " compact" : ""}">
         <header class="header">
           <h2 class="title">Cut List</h2>
           <p class="subtitle">${escapeHtml(customerName || "")}${customerName || jobName ? " - " : ""}${escapeHtml(jobName || "")}</p>
@@ -209,12 +236,15 @@ function buildDocumentHtml({ customerName, jobName, sections }) {
   </html>`;
 }
 
-export async function printCutList({ customerName, jobName, items }) {
+export async function printCutList({ customerName, jobName, items, openingCount }) {
   const sourceItems = Array.isArray(items) ? items : [];
   const sections = buildSections(sourceItems);
   if (sections.length === 0) {
     return false;
   }
+
+  const normalizedOpenings = Number(openingCount);
+  const compactMode = Number.isFinite(normalizedOpenings) && normalizedOpenings > 0 && normalizedOpenings <= 6;
 
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
@@ -244,7 +274,7 @@ export async function printCutList({ customerName, jobName, items }) {
     }
 
     doc.open();
-    doc.write(buildDocumentHtml({ customerName, jobName, sections }));
+    doc.write(buildDocumentHtml({ customerName, jobName, sections, compactMode }));
     doc.close();
 
     await new Promise((resolve) => {

@@ -9,7 +9,7 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { formatMeasurement } from '../../lib/measurements';
-import { getStyleFamily, getStyleVariant, getStyleVariantLabel, groupStylesByFamily } from '../../lib/styleCatalog';
+import { getStyleFamily, getStyleUse, getStyleVariant, getStyleVariantLabel, groupStylesByFamily } from '../../lib/styleCatalog';
 
 const collapsedFamiliesStorageKey = 'doorlist:catalog:collapsed-families';
 
@@ -29,6 +29,17 @@ function readCollapsedFamilies() {
   } catch {
     return [];
   }
+}
+
+function getStyleUseLabel(style) {
+  const use = getStyleUse(style);
+  if (use === 'door') {
+    return 'Door';
+  }
+  if (use === 'drawer-front') {
+    return 'Drawer Front';
+  }
+  return 'Both';
 }
 
 export function CatalogView() {
@@ -254,7 +265,7 @@ export function CatalogView() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Catalog</h2>
-        <Button onClick={openCreate}>
+        <Button onClick={() => openCreate()}>
           <Plus size={16} className="mr-2" />
           Add Door Style
         </Button>
@@ -308,6 +319,7 @@ export function CatalogView() {
                         <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
                           <th className="w-10 px-2 py-3" />
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Variant</th>
+                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Applies To</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Stile</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Rail</th>
                           <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Tenon</th>
@@ -339,6 +351,7 @@ export function CatalogView() {
                               <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
                                 <span>{getStyleVariantLabel(style)}</span>
                               </td>
+                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{getStyleUseLabel(style)}</td>
                               <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.stileWidth)}</td>
                               <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.railWidth)}</td>
                               <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.tenonLength)}</td>

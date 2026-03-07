@@ -22,12 +22,24 @@ export function ExportAllData() {
   return window['go']['main']['App']['ExportAllData']();
 }
 
+export function ExportAllDataToFile() {
+  return window['go']['main']['App']['ExportAllDataToFile']();
+}
+
 export function ExportCatalogData() {
   return window['go']['main']['App']['ExportCatalogData']();
 }
 
+export function ExportCatalogDataToFile() {
+  return window['go']['main']['App']['ExportCatalogDataToFile']();
+}
+
 export function ExportOverlayData() {
   return window['go']['main']['App']['ExportOverlayData']();
+}
+
+export function ExportOverlayDataToFile() {
+  return window['go']['main']['App']['ExportOverlayDataToFile']();
 }
 
 export function GenerateCutList(arg1) {

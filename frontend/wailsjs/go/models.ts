@@ -17,6 +17,8 @@ export namespace main {
 	    overlayRight: number;
 	    overlayTop: number;
 	    overlayBottom: number;
+	    panelLayout: string;
+	    slabGrain: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DoorEntry(source);
@@ -40,6 +42,8 @@ export namespace main {
 	        this.overlayRight = source["overlayRight"];
 	        this.overlayTop = source["overlayTop"];
 	        this.overlayBottom = source["overlayBottom"];
+	        this.panelLayout = source["panelLayout"];
+	        this.slabGrain = source["slabGrain"];
 	    }
 	}
 	export class Job {
@@ -108,6 +112,7 @@ export namespace main {
 	    name: string;
 	    family?: string;
 	    variant?: string;
+	    styleUse?: string;
 	    isSlab: boolean;
 	    order?: number;
 	    stileWidth: number;
@@ -126,6 +131,7 @@ export namespace main {
 	        this.name = source["name"];
 	        this.family = source["family"];
 	        this.variant = source["variant"];
+	        this.styleUse = source["styleUse"];
 	        this.isSlab = source["isSlab"];
 	        this.order = source["order"];
 	        this.stileWidth = source["stileWidth"];
@@ -372,6 +378,8 @@ export namespace main {
 	    widthFormatted: string;
 	    thicknessFormatted: string;
 	    label: string;
+	    slabUse?: string;
+	    slabGrain?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CutListItem(source);
@@ -388,6 +396,8 @@ export namespace main {
 	        this.widthFormatted = source["widthFormatted"];
 	        this.thicknessFormatted = source["thicknessFormatted"];
 	        this.label = source["label"];
+	        this.slabUse = source["slabUse"];
+	        this.slabGrain = source["slabGrain"];
 	    }
 	}
 	export class CutListResponse {
@@ -430,6 +440,7 @@ export namespace main {
 	    name: string;
 	    family?: string;
 	    variant?: string;
+	    styleUse?: string;
 	    stileWidth: number;
 	    railWidth: number;
 	    tenonLength: number;
@@ -445,6 +456,7 @@ export namespace main {
 	        this.name = source["name"];
 	        this.family = source["family"];
 	        this.variant = source["variant"];
+	        this.styleUse = source["styleUse"];
 	        this.stileWidth = source["stileWidth"];
 	        this.railWidth = source["railWidth"];
 	        this.tenonLength = source["tenonLength"];

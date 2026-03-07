@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -230,6 +231,7 @@ type DoorStyle struct {
 	Name           string  `json:"name"`
 	Family         string  `json:"family,omitempty"`
 	Variant        string  `json:"variant,omitempty"`
+	StyleUse       string  `json:"styleUse,omitempty"`
 	IsSlab         bool    `json:"isSlab"`
 	Order          int     `json:"order,omitempty"`
 	StileWidth     float64 `json:"stileWidth"`
@@ -243,6 +245,7 @@ type DoorStyleRequest struct {
 	Name           string  `json:"name"`
 	Family         string  `json:"family,omitempty"`
 	Variant        string  `json:"variant,omitempty"`
+	StyleUse       string  `json:"styleUse,omitempty"`
 	StileWidth     float64 `json:"stileWidth"`
 	RailWidth      float64 `json:"railWidth"`
 	TenonLength    float64 `json:"tenonLength"`
@@ -267,6 +270,8 @@ type DoorEntry struct {
 	OverlayRight         float64 `json:"overlayRight"`
 	OverlayTop           float64 `json:"overlayTop"`
 	OverlayBottom        float64 `json:"overlayBottom"`
+	PanelLayout          string  `json:"panelLayout"`
+	SlabGrain            string  `json:"slabGrain"`
 }
 
 func (a *App) GetJob(id string) (Job, error) {
@@ -587,6 +592,17 @@ func (a *App) ExportCatalogData() (CatalogDataPayload, error) {
 	}, nil
 }
 
+func (a *App) ExportCatalogDataToFile() (string, error) {
+	payload, err := a.ExportCatalogData()
+	if err != nil {
+		return "", err
+	}
+
+	dateText := time.Now().UTC().Format("2006-01-02")
+	defaultName := fmt.Sprintf("cutlogic-catalog-%s.json", dateText)
+	return a.saveJSONWithDialog("Export Catalog", defaultName, payload)
+}
+
 func (a *App) ImportCatalogData(payload CatalogDataPayload) ([]DoorStyle, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -617,6 +633,17 @@ func (a *App) ExportOverlayData() (OverlayDataPayload, error) {
 		ExportedAt:        time.Now().UTC().Format(time.RFC3339),
 		OverlayCategories: normalizeOverlayCategoryList(settings.OverlayCategories),
 	}, nil
+}
+
+func (a *App) ExportOverlayDataToFile() (string, error) {
+	payload, err := a.ExportOverlayData()
+	if err != nil {
+		return "", err
+	}
+
+	dateText := time.Now().UTC().Format("2006-01-02")
+	defaultName := fmt.Sprintf("cutlogic-overlay-presets-%s.json", dateText)
+	return a.saveJSONWithDialog("Export Overlay Presets", defaultName, payload)
 }
 
 func (a *App) ImportOverlayData(payload OverlayDataPayload) ([]OverlayCategory, error) {
@@ -662,6 +689,49 @@ func (a *App) ExportAllData() (AppBackupPayload, error) {
 		Styles:     normalizeDoorStyleSliceForStorage(styles),
 		Jobs:       jobs,
 	}, nil
+}
+
+func (a *App) ExportAllDataToFile() (string, error) {
+	payload, err := a.ExportAllData()
+	if err != nil {
+		return "", err
+	}
+
+	dateText := time.Now().UTC().Format("2006-01-02")
+	defaultName := fmt.Sprintf("cutlogic-backup-%s.json", dateText)
+	return a.saveJSONWithDialog("Export Full Backup", defaultName, payload)
+}
+
+func (a *App) saveJSONWithDialog(title string, defaultName string, payload any) (string, error) {
+	if a.ctx == nil {
+		return "", errors.New("application context not ready")
+	}
+
+	filePath, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           title,
+		DefaultFilename: defaultName,
+		Filters: []runtime.FileFilter{
+			{DisplayName: "JSON Files (*.json)", Pattern: "*.json"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(filePath) == "" {
+		return "", nil
+	}
+
+	contents, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	contents = append(contents, '\n')
+
+	if err := os.WriteFile(filePath, contents, 0o644); err != nil {
+		return "", err
+	}
+
+	return filePath, nil
 }
 
 func (a *App) ImportAllData(payload AppBackupPayload) (AppBackupPayload, error) {
@@ -808,6 +878,7 @@ func (a *App) CreateDoorStyle(req DoorStyleRequest) (DoorStyle, error) {
 		Name:           styleName,
 		Family:         familyName,
 		Variant:        variantName,
+		StyleUse:       normalizeStyleUse(req.StyleUse),
 		IsSlab:         false,
 		Order:          nextDoorStyleOrder(styles),
 		StileWidth:     req.StileWidth,
@@ -889,6 +960,7 @@ func (a *App) UpdateDoorStyle(id string, req DoorStyleRequest) (DoorStyle, error
 			styles[i].Name = styleName
 			styles[i].Family = familyName
 			styles[i].Variant = variantName
+			styles[i].StyleUse = normalizeStyleUse(req.StyleUse)
 			styles[i].StileWidth = req.StileWidth
 			styles[i].RailWidth = req.RailWidth
 			styles[i].TenonLength = req.TenonLength
@@ -964,6 +1036,8 @@ func (a *App) SaveJob(job Job) (Job, error) {
 		job.Doors[i].Name = strings.TrimSpace(job.Doors[i].Name)
 		job.Doors[i].DoorType = normalizeDoorType(job.Doors[i].DoorType)
 		job.Doors[i].OverlayType = normalizeOverlayType(job.Doors[i].OverlayType)
+		job.Doors[i].PanelLayout = normalizePanelLayout(job.Doors[i].PanelLayout)
+		job.Doors[i].SlabGrain = normalizeSlabGrain(job.Doors[i].SlabGrain)
 		if job.Doors[i].ButtGap <= 0 {
 			job.Doors[i].ButtGap = 0.125
 		}
@@ -1023,6 +1097,26 @@ func (a *App) loadJobsUnsafe() ([]Job, error) {
 		if jobs[i].ProductionStatus != normalizedStatus {
 			jobs[i].ProductionStatus = normalizedStatus
 			updated = true
+		}
+
+		for d := range jobs[i].Doors {
+			normalizedOverlayType := normalizeOverlayType(jobs[i].Doors[d].OverlayType)
+			if jobs[i].Doors[d].OverlayType != normalizedOverlayType {
+				jobs[i].Doors[d].OverlayType = normalizedOverlayType
+				updated = true
+			}
+
+			normalizedPanelLayout := normalizePanelLayout(jobs[i].Doors[d].PanelLayout)
+			if jobs[i].Doors[d].PanelLayout != normalizedPanelLayout {
+				jobs[i].Doors[d].PanelLayout = normalizedPanelLayout
+				updated = true
+			}
+
+			normalizedSlabGrain := normalizeSlabGrain(jobs[i].Doors[d].SlabGrain)
+			if jobs[i].Doors[d].SlabGrain != normalizedSlabGrain {
+				jobs[i].Doors[d].SlabGrain = normalizedSlabGrain
+				updated = true
+			}
 		}
 	}
 
@@ -1250,6 +1344,36 @@ func normalizeOverlayType(overlayType string) string {
 	return "door"
 }
 
+func normalizePanelLayout(layout string) string {
+	normalized := strings.ToLower(strings.TrimSpace(layout))
+	if normalized == "two-panel-vertical" || normalized == "two-panel-horizontal" {
+		return normalized
+	}
+
+	return "single"
+}
+
+func normalizeStyleUse(styleUse string) string {
+	normalized := strings.ToLower(strings.TrimSpace(styleUse))
+	if normalized == "door" || normalized == "drawer-front" {
+		return normalized
+	}
+
+	return "both"
+}
+
+func normalizeSlabGrain(slabGrain string) string {
+	normalized := strings.ToLower(strings.TrimSpace(slabGrain))
+	if normalized == "vertical" || normalized == "horizontal" {
+		return normalized
+	}
+	if normalized == "painted" || normalized == "mdf" {
+		return "mdf"
+	}
+
+	return "mdf"
+}
+
 func normalizeDoorStyleIdentity(name string, family string, variant string) (string, string, string) {
 	resolvedFamily := strings.TrimSpace(family)
 	resolvedVariant := strings.TrimSpace(variant)
@@ -1288,6 +1412,7 @@ func normalizeDoorStyleSliceForStorage(styles []DoorStyle) []DoorStyle {
 	for _, rawStyle := range styles {
 		style := rawStyle
 		style.Name, style.Family, style.Variant = normalizeDoorStyleIdentity(style.Name, style.Family, style.Variant)
+		style.StyleUse = normalizeStyleUse(style.StyleUse)
 
 		isSlab := style.ID == defaultSlabStyleID || style.IsSlab || strings.EqualFold(style.Family, "slab") || strings.EqualFold(style.Name, "slab")
 		if isSlab {
@@ -1349,6 +1474,8 @@ func normalizeJobForStorage(job Job) Job {
 		job.Doors[i].Name = strings.TrimSpace(job.Doors[i].Name)
 		job.Doors[i].DoorType = normalizeDoorType(job.Doors[i].DoorType)
 		job.Doors[i].OverlayType = normalizeOverlayType(job.Doors[i].OverlayType)
+		job.Doors[i].PanelLayout = normalizePanelLayout(job.Doors[i].PanelLayout)
+		job.Doors[i].SlabGrain = normalizeSlabGrain(job.Doors[i].SlabGrain)
 		if job.Doors[i].ButtGap <= 0 {
 			job.Doors[i].ButtGap = 0.125
 		}
@@ -1550,6 +1677,7 @@ func defaultSlabDoorStyle() DoorStyle {
 		Name:           "Slab",
 		Family:         "Slab",
 		Variant:        "",
+		StyleUse:       "both",
 		IsSlab:         true,
 		Order:          1,
 		StileWidth:     0,

@@ -12,9 +12,15 @@ export function DeleteJob(arg1:string):Promise<void>;
 
 export function ExportAllData():Promise<main.AppBackupPayload>;
 
+export function ExportAllDataToFile():Promise<string>;
+
 export function ExportCatalogData():Promise<main.CatalogDataPayload>;
 
+export function ExportCatalogDataToFile():Promise<string>;
+
 export function ExportOverlayData():Promise<main.OverlayDataPayload>;
+
+export function ExportOverlayDataToFile():Promise<string>;
 
 export function GenerateCutList(arg1:string):Promise<main.CutListResponse>;
 

@@ -26,9 +26,11 @@ import {
   findStyleById,
   getStyleDisplayName,
   getStyleFamily,
+  getStyleUse,
   getStyleVariant,
   getStyleVariantLabel,
   groupStylesByFamily,
+  styleMatchesOverlayType,
 } from "../../lib/styleCatalog";
 import { printCutList } from "../../lib/cutListPrint";
 
@@ -50,6 +52,8 @@ function createDoorDraft(defaultStyleId, defaultOverlay) {
     overlayRight: formatMeasurement(defaultOverlay ?? 0.5),
     overlayTop: formatMeasurement(defaultOverlay ?? 0.5),
     overlayBottom: formatMeasurement(defaultOverlay ?? 0.5),
+    panelLayout: "single",
+    slabGrain: "mdf",
   };
 }
 
@@ -86,6 +90,15 @@ function mapDoorToRow(door, fallbackStyleId, fallbackOverlay) {
     overlayBottom: formatMeasurement(
       hasStoredSides ? door.overlayBottom : resolvedOverlay,
     ),
+    panelLayout:
+      door.panelLayout === "two-panel-vertical" ||
+      door.panelLayout === "two-panel-horizontal"
+        ? door.panelLayout
+        : "single",
+    slabGrain:
+      door.slabGrain === "vertical" || door.slabGrain === "horizontal"
+        ? door.slabGrain
+        : "mdf",
   };
 }
 
@@ -147,8 +160,110 @@ function parseDoorRow(row) {
       overlayRight: useSideOverlays ? overlayRight : 0,
       overlayTop: useSideOverlays ? overlayTop : 0,
       overlayBottom: useSideOverlays ? overlayBottom : 0,
+      panelLayout:
+        row.panelLayout === "two-panel-vertical" ||
+        row.panelLayout === "two-panel-horizontal"
+          ? row.panelLayout
+          : "single",
+      slabGrain:
+        row.slabGrain === "vertical" || row.slabGrain === "horizontal"
+          ? row.slabGrain
+          : "mdf",
     },
   };
+}
+
+function formatSlabUse(value) {
+  return value === "drawer-front" ? "Drawer Front" : "Door";
+}
+
+function formatSlabGrain(value) {
+  if (value === "vertical") {
+    return "Vertical";
+  }
+  if (value === "horizontal") {
+    return "Horizontal";
+  }
+  return "MDF";
+}
+
+function formatPanelLayout(value) {
+  if (value === "two-panel-vertical") {
+    return "2-Panel Vertical";
+  }
+  if (value === "two-panel-horizontal") {
+    return "2-Panel Horizontal";
+  }
+  return "Single Panel";
+}
+
+function SinglePanelLayoutIcon() {
+  return (
+    <svg viewBox="0 0 200 300" className="h-8 w-6" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="10" y="10" width="180" height="280" />
+        <rect x="50" y="50" width="100" height="200" />
+        <line x1="50" y1="10" x2="50" y2="50" />
+        <line x1="150" y1="10" x2="150" y2="50" />
+        <line x1="50" y1="250" x2="50" y2="290" />
+        <line x1="150" y1="250" x2="150" y2="290" />
+      </g>
+    </svg>
+  );
+}
+
+function TwoPanelVerticalLayoutIcon() {
+  return (
+    <svg viewBox="0 0 200 300" className="h-8 w-6" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="10" y="10" width="180" height="280" />
+        <rect x="50" y="50" width="100" height="80" />
+        <rect x="50" y="170" width="100" height="80" />
+        <line x1="50" y1="10" x2="50" y2="50" />
+        <line x1="150" y1="10" x2="150" y2="50" />
+        <line x1="50" y1="130" x2="50" y2="170" />
+        <line x1="150" y1="130" x2="150" y2="170" />
+        <line x1="50" y1="250" x2="50" y2="290" />
+        <line x1="150" y1="250" x2="150" y2="290" />
+      </g>
+    </svg>
+  );
+}
+
+function TwoPanelHorizontalLayoutIcon() {
+  return (
+    <svg viewBox="0 0 200 300" className="h-8 w-6" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="10" y="10" width="180" height="280" />
+        <rect x="50" y="50" width="40" height="200" />
+        <rect x="110" y="50" width="40" height="200" />
+        <line x1="50" y1="10" x2="50" y2="50" />
+        <line x1="150" y1="10" x2="150" y2="50" />
+        <line x1="90" y1="50" x2="110" y2="50" />
+        <line x1="90" y1="250" x2="110" y2="250" />
+        <line x1="50" y1="250" x2="50" y2="290" />
+        <line x1="150" y1="250" x2="150" y2="290" />
+      </g>
+    </svg>
+  );
+}
+
+function PanelLayoutOptionIcon({ value }) {
+  if (value === "two-panel-vertical") {
+    return <TwoPanelVerticalLayoutIcon />;
+  }
+  if (value === "two-panel-horizontal") {
+    return <TwoPanelHorizontalLayoutIcon />;
+  }
+  return <SinglePanelLayoutIcon />;
+}
+
+function getCutPartDisplay(item) {
+  if (item.part !== "Slab") {
+    return item.part;
+  }
+
+  return `${formatSlabUse(item.slabUse)} - ${formatSlabGrain(item.slabGrain)}`;
 }
 
 function resolvePreviewOverlays(row, job) {
@@ -247,12 +362,35 @@ function getDoorQty(row) {
 
 function renderStyleSelectors(row, updateRow, styleFamilies, styleByID) {
   const selectedStyle = styleByID.get(row.styleId) || null;
-  const selectedFamily = selectedStyle
-    ? getStyleFamily(selectedStyle)
-    : styleFamilies[0]?.family || "";
-  const familyStyles =
-    styleFamilies.find((group) => group.family === selectedFamily)?.styles ||
-    [];
+  const overlayType = row.overlayType === "drawer-front" ? "drawer-front" : "door";
+  const selectedFamily = selectedStyle ? getStyleFamily(selectedStyle) : "";
+
+  const compatibleFamilies = styleFamilies
+    .map((group) => ({
+      family: group.family,
+      styles: (group.styles || []).filter((style) => styleMatchesOverlayType(style, overlayType)),
+    }))
+    .filter((group) => group.styles.length > 0);
+
+  let availableFamilies = compatibleFamilies;
+  const selectedStyleAllowed = selectedStyle ? styleMatchesOverlayType(selectedStyle, overlayType) : false;
+  if (selectedStyle && !selectedStyleAllowed) {
+    const selectedGroupIndex = availableFamilies.findIndex((group) => group.family === selectedFamily);
+    if (selectedGroupIndex >= 0) {
+      const currentStyles = availableFamilies[selectedGroupIndex].styles;
+      if (!currentStyles.some((style) => style.id === selectedStyle.id)) {
+        const next = [...availableFamilies];
+        next[selectedGroupIndex] = { ...next[selectedGroupIndex], styles: [selectedStyle, ...currentStyles] };
+        availableFamilies = next;
+      }
+    } else {
+      availableFamilies = [{ family: selectedFamily || "Current Style", styles: [selectedStyle] }, ...availableFamilies];
+    }
+  }
+
+  const resolvedFamily = selectedFamily || availableFamilies[0]?.family || "";
+  const familyStyles = availableFamilies.find((group) => group.family === resolvedFamily)?.styles || [];
+  const selectedStyleId = familyStyles.some((style) => style.id === row.styleId) ? row.styleId : familyStyles[0]?.id || "";
 
   return (
     <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
@@ -261,17 +399,17 @@ function renderStyleSelectors(row, updateRow, styleFamilies, styleByID) {
           Style Family
         </label>
         <select
-          value={selectedFamily}
+          value={resolvedFamily}
           onChange={(event) => {
             const nextFamily = event.target.value;
             const nextStyle =
-              styleFamilies.find((group) => group.family === nextFamily)
+              availableFamilies.find((group) => group.family === nextFamily)
                 ?.styles?.[0] || null;
             updateRow("styleId", nextStyle?.id || "");
           }}
           className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         >
-          {styleFamilies.map((group) => (
+          {availableFamilies.map((group) => (
             <option key={group.family} value={group.family}>
               {group.family}
             </option>
@@ -283,13 +421,14 @@ function renderStyleSelectors(row, updateRow, styleFamilies, styleByID) {
           Variant
         </label>
         <select
-          value={row.styleId}
+          value={selectedStyleId}
           onChange={(event) => updateRow("styleId", event.target.value)}
           className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
         >
           {familyStyles.map((style) => (
             <option key={style.id} value={style.id}>
               {getStyleVariantLabel(style)}
+              {styleMatchesOverlayType(style, overlayType) ? "" : ` (Current: ${getStyleUse(style)})`}
             </option>
           ))}
         </select>
@@ -303,6 +442,7 @@ function renderDoorSettings(
   updateRow,
   doorOverlayItems,
   drawerFrontItems,
+  isSlab,
 ) {
   const overlayType =
     row.overlayType === "drawer-front" ? "drawer-front" : "door";
@@ -341,7 +481,7 @@ function renderDoorSettings(
     <div className="grid gap-4 rounded-lg border border-zinc-200 p-3 md:grid-cols-[220px_150px_1fr] dark:border-zinc-700">
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Item
+          {isSlab ? "Slab Use" : "Item"}
         </p>
         <div className="flex gap-4">
           <label className="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
@@ -350,7 +490,7 @@ function renderDoorSettings(
               checked={overlayType === "door"}
               onChange={() => switchOverlayType("door")}
             />
-            Door
+            {isSlab ? "Door" : "Door"}
           </label>
           <label className="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
             <input
@@ -358,9 +498,43 @@ function renderDoorSettings(
               checked={overlayType === "drawer-front"}
               onChange={() => switchOverlayType("drawer-front")}
             />
-            Drawer Front
+            {isSlab ? "Drawer Front" : "Drawer Front"}
           </label>
         </div>
+
+        {isSlab ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Grain / Finish
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <label className="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={row.slabGrain === "vertical"}
+                  onChange={() => updateRow("slabGrain", "vertical")}
+                />
+                Vertical
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={row.slabGrain === "horizontal"}
+                  onChange={() => updateRow("slabGrain", "horizontal")}
+                />
+                Horizontal
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={row.slabGrain === "mdf"}
+                  onChange={() => updateRow("slabGrain", "mdf")}
+                />
+                MDF
+              </label>
+            </div>
+          </>
+        ) : null}
 
         <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           Door Type
@@ -383,6 +557,46 @@ function renderDoorSettings(
             Butt
           </label>
         </div>
+
+        {!isSlab ? (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Panel Layout
+            </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                {
+                  value: "single",
+                  label: "Single Panel",
+                },
+                {
+                  value: "two-panel-vertical",
+                  label: "2-Panel Vertical",
+                },
+              ].map((option) => {
+                const isActive = (row.panelLayout || "single") === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => updateRow("panelLayout", option.value)}
+                    className={`flex min-h-[84px] flex-col items-center justify-center gap-1 rounded-md border px-1 py-1.5 text-center transition-colors ${
+                      isActive
+                        ? "border-zinc-900 bg-zinc-100 text-zinc-900 dark:border-zinc-100 dark:bg-zinc-800 dark:text-zinc-100"
+                        : "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    }`}
+                    title={option.label}
+                  >
+                    <PanelLayoutOptionIcon value={option.value} />
+                    <span className="text-[11px] font-medium leading-tight">
+                      {option.value === "single" ? "Single" : "Vertical"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div>
@@ -747,10 +961,16 @@ export function JobDetailView({ jobId, onBack }) {
   };
 
   const handlePrintCutList = async () => {
+    const openingCount = (rows || []).reduce((sum, row) => {
+      const qty = Number.parseInt(row?.qty, 10);
+      return sum + (Number.isFinite(qty) && qty > 0 ? qty : 0);
+    }, 0);
+
     const printed = await printCutList({
       customerName: job?.customerName,
       jobName: job?.name,
       items: cutList?.items || [],
+      openingCount,
     });
     if (!printed) {
       showToast("No printable cut list sections found", "error");
@@ -864,6 +1084,7 @@ export function JobDetailView({ jobId, onBack }) {
             updateDraft,
             overlayItems,
             drawerFrontItems,
+            Boolean(styleByID.get(draftRow.styleId)?.isSlab),
           )}
 
           <div className="flex justify-end">
@@ -916,16 +1137,8 @@ export function JobDetailView({ jobId, onBack }) {
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const styleName = (() => {
-                      const selectedStyle = findStyleById(
-                        doorStyles || [],
-                        row.styleId,
-                      );
-                      if (!selectedStyle) {
-                        return "-";
-                      }
-                      return getStyleDisplayName(selectedStyle);
-                    })();
+                    const selectedStyle = findStyleById(doorStyles || [], row.styleId);
+                    const styleName = selectedStyle ? getStyleDisplayName(selectedStyle) : "-";
                     return (
                       <tr
                         key={row.id}
@@ -942,12 +1155,22 @@ export function JobDetailView({ jobId, onBack }) {
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                           {row.doorType === "butt" ? "Butt" : "Single"}
+                          {!selectedStyle?.isSlab ? (
+                            <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
+                              {formatPanelLayout(row.panelLayout)}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                           {getFinishedSizeSummary(row, job)}
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                           {styleName}
+                          {selectedStyle?.isSlab ? (
+                            <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
+                              {formatSlabUse(row.overlayType)} | {formatSlabGrain(row.slabGrain)}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
@@ -1039,6 +1262,7 @@ export function JobDetailView({ jobId, onBack }) {
               updateEdit,
               overlayItems,
               drawerFrontItems,
+              Boolean(styleByID.get(editRow.styleId)?.isSlab),
             )}
 
             <div className="flex justify-end gap-2 pt-2">
@@ -1150,7 +1374,7 @@ export function JobDetailView({ jobId, onBack }) {
                               className="border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
                             >
                               <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                {item.part}
+                                {getCutPartDisplay(item)}
                               </td>
                               <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                                 {item.qty}

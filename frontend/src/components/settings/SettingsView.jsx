@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Database, DoorOpen, Download, Monitor, Moon, Pencil, Plus, Save, Sun, SunMoon, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Database, DoorOpen, Download, GripVertical, Monitor, Moon, Pencil, Plus, Save, Sun, SunMoon, Trash2, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useTheme } from '../ui/ThemeProvider';
 import { cn } from '../../lib/utils';
-import { ExportAllData, ExportCatalogData, ExportOverlayData, GetOverlayCategories, ImportAllData, ImportCatalogData, ImportOverlayData, SaveOverlayCategories, WipeAllData } from '../../../wailsjs/go/main/App';
+import { ExportAllDataToFile, ExportCatalogDataToFile, ExportOverlayDataToFile, GetOverlayCategories, ImportAllData, ImportCatalogData, ImportOverlayData, SaveOverlayCategories, WipeAllData } from '../../../wailsjs/go/main/App';
 import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
 import { Button } from '../ui/Button';
+import { ConfirmModal } from '../ui/ConfirmModal';
 import { Input } from '../ui/Input';
 import { useToast } from '../ui/Toast';
 import { Modal } from '../ui/Modal';
@@ -31,6 +32,10 @@ function createCategory() {
   };
 }
 
+function createLocalId() {
+  return `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+}
+
 function createOverlayItem() {
   return {
     id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -42,7 +47,7 @@ function createOverlayItem() {
   };
 }
 
-const overlayCollapsedStorageKey = 'doorlist:overlay-defaults:collapsed-categories';
+const overlayCollapsedStorageKey = 'cutlogic:overlay-presets:collapsed-categories';
 const wipeConfirmPhrase = 'WIPE ALL DATA';
 
 function readCollapsedCategoryIds(storageKey) {
@@ -111,6 +116,11 @@ export function SettingsView() {
   const [isWipingData, setIsWipingData] = useState(false);
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [wipeConfirmText, setWipeConfirmText] = useState('');
+  const [draggedCategoryId, setDraggedCategoryId] = useState('');
+  const [dragOverCategoryId, setDragOverCategoryId] = useState('');
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragOverItemKey, setDragOverItemKey] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const catalogImportRef = useRef(null);
   const overlayImportRef = useRef(null);
   const backupImportRef = useRef(null);
@@ -125,7 +135,7 @@ export function SettingsView() {
         setOverlayCategories(safe.map((category) => normalizeCategory(category)));
       } catch (error) {
         setOverlayCategories([]);
-        showToast('Failed to load overlay defaults', 'error');
+        showToast('Failed to load overlay presets', 'error');
       } finally {
         setOverlayLoaded(true);
       }
@@ -150,6 +160,23 @@ export function SettingsView() {
     setOverlayCategories((prev) => prev.map((category) => (category.id === categoryId ? updater(category) : category)));
   };
 
+  const moveById = (list, sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) {
+      return list;
+    }
+
+    const sourceIndex = list.findIndex((entry) => entry.id === sourceId);
+    const targetIndex = list.findIndex((entry) => entry.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) {
+      return list;
+    }
+
+    const next = [...list];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    return next;
+  };
+
   const addCategory = () => {
     const category = createCategory();
     setOverlayCategories((prev) => [...prev, category]);
@@ -164,6 +191,75 @@ export function SettingsView() {
       setEditingCategoryId(null);
       setCategoryNameDraft('');
     }
+  };
+
+  const requestRemoveCategory = (category) => {
+    setDeleteTarget({
+      type: 'category',
+      categoryId: category.id,
+      categoryName: category.name || 'Untitled Category',
+    });
+  };
+
+  const duplicateCategory = (categoryId) => {
+    const source = overlayCategories.find((category) => category.id === categoryId);
+    if (!source) {
+      return;
+    }
+
+    const cloneItems = (items) => (items || []).map((item) => ({ ...item, id: createLocalId() }));
+    const duplicated = {
+      ...source,
+      id: createLocalId(),
+      name: source.name ? `${source.name} Copy` : 'Untitled Category Copy',
+      doorItems: cloneItems(source.doorItems),
+      drawerFrontItems: cloneItems(source.drawerFrontItems),
+    };
+
+    setOverlayCategories((prev) => {
+      const index = prev.findIndex((category) => category.id === categoryId);
+      if (index < 0) {
+        return [...prev, duplicated];
+      }
+
+      const next = [...prev];
+      next.splice(index + 1, 0, duplicated);
+      return next;
+    });
+    setCollapsedCategoryIds((prev) => prev.filter((id) => id !== duplicated.id));
+    showToast('Overlay category duplicated', 'success');
+  };
+
+  const onCategoryDragStart = (event, categoryId) => {
+    setDraggedCategoryId(categoryId);
+    setDragOverCategoryId('');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', categoryId);
+  };
+
+  const onCategoryDragOver = (event, categoryId) => {
+    event.preventDefault();
+    if (!draggedCategoryId || draggedCategoryId === categoryId) {
+      return;
+    }
+    setDragOverCategoryId(categoryId);
+  };
+
+  const onCategoryDrop = (event, categoryId) => {
+    event.preventDefault();
+    const sourceId = event.dataTransfer.getData('text/plain') || draggedCategoryId;
+    setDragOverCategoryId('');
+    setDraggedCategoryId('');
+    if (!sourceId || sourceId === categoryId) {
+      return;
+    }
+
+    setOverlayCategories((prev) => moveById(prev, sourceId, categoryId));
+  };
+
+  const onCategoryDragEnd = () => {
+    setDraggedCategoryId('');
+    setDragOverCategoryId('');
   };
 
   const toggleCategory = (categoryId) => {
@@ -238,6 +334,79 @@ export function SettingsView() {
 
   const removeItem = (categoryId, group, itemId) => {
     setCategoryItems(categoryId, group, (items) => items.filter((item) => item.id !== itemId));
+  };
+
+  const requestRemoveItem = (categoryId, group, item) => {
+    setDeleteTarget({
+      type: 'item',
+      categoryId,
+      group,
+      itemId: item.id,
+      itemName: item.name || 'Untitled Item',
+    });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    if (deleteTarget.type === 'category') {
+      removeCategory(deleteTarget.categoryId);
+      showToast('Overlay preset deleted', 'success');
+    } else {
+      removeItem(deleteTarget.categoryId, deleteTarget.group, deleteTarget.itemId);
+      showToast('Overlay preset item deleted', 'success');
+    }
+
+    setDeleteTarget(null);
+  };
+
+  const onItemDragStart = (event, categoryId, group, itemId) => {
+    const payload = { categoryId, group, itemId };
+    setDraggedItem(payload);
+    setDragOverItemKey('');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', JSON.stringify(payload));
+  };
+
+  const onItemDragOver = (event, categoryId, group, itemId) => {
+    event.preventDefault();
+    if (!draggedItem) {
+      return;
+    }
+    if (draggedItem.categoryId !== categoryId || draggedItem.group !== group || draggedItem.itemId === itemId) {
+      return;
+    }
+    setDragOverItemKey(categoryItemKey(categoryId, group, itemId));
+  };
+
+  const onItemDrop = (event, categoryId, group, itemId) => {
+    event.preventDefault();
+    const raw = event.dataTransfer.getData('text/plain');
+    let source = draggedItem;
+    try {
+      source = raw ? JSON.parse(raw) : draggedItem;
+    } catch {
+      source = draggedItem;
+    }
+
+    setDragOverItemKey('');
+    setDraggedItem(null);
+
+    if (!source) {
+      return;
+    }
+    if (source.categoryId !== categoryId || source.group !== group || source.itemId === itemId) {
+      return;
+    }
+
+    setCategoryItems(categoryId, group, (items) => moveById(items, source.itemId, itemId));
+  };
+
+  const onItemDragEnd = () => {
+    setDraggedItem(null);
+    setDragOverItemKey('');
   };
 
   const startEditItem = (categoryId, group, item) => {
@@ -321,31 +490,20 @@ export function SettingsView() {
       const saved = await SaveOverlayCategories(payload);
       const safe = Array.isArray(saved) ? saved : [];
       setOverlayCategories(safe.map((category) => normalizeCategory(category)));
-      showToast('Overlay defaults saved', 'success');
+      showToast('Overlay presets saved', 'success');
     } catch (error) {
-      showToast('Failed to save overlay defaults', 'error');
+      showToast('Failed to save overlay presets', 'error');
     } finally {
       setIsSavingOverlays(false);
     }
   };
 
-  const downloadJson = (filenamePrefix, payload) => {
-    const dateText = new Date().toISOString().slice(0, 10);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${filenamePrefix}-${dateText}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const handleExportCatalog = async () => {
     try {
-      const payload = await ExportCatalogData();
-      downloadJson('cutlogic-catalog', payload);
+      const filePath = await ExportCatalogDataToFile();
+      if (!filePath) {
+        return;
+      }
       showToast('Catalog exported', 'success');
     } catch (error) {
       showToast('Failed to export catalog', 'error');
@@ -386,11 +544,13 @@ export function SettingsView() {
 
   const handleExportOverlay = async () => {
     try {
-      const payload = await ExportOverlayData();
-      downloadJson('cutlogic-overlay', payload);
-      showToast('Overlay defaults exported', 'success');
+      const filePath = await ExportOverlayDataToFile();
+      if (!filePath) {
+        return;
+      }
+      showToast('Overlay presets exported', 'success');
     } catch (error) {
-      showToast('Failed to export overlay defaults', 'error');
+      showToast('Failed to export overlay presets', 'error');
     }
   };
 
@@ -406,9 +566,9 @@ export function SettingsView() {
       const categories = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.overlayCategories) ? parsed.overlayCategories : []);
       const saved = await ImportOverlayData({ version: 1, overlayCategories: categories, exportedAt: parsed?.exportedAt || undefined });
       setOverlayCategories((saved || []).map((category) => normalizeCategory(category)));
-      showToast('Overlay defaults imported', 'success');
+      showToast('Overlay presets imported', 'success');
     } catch (error) {
-      showToast('Failed to import overlay defaults JSON', 'error');
+      showToast('Failed to import overlay presets JSON', 'error');
     } finally {
       setIsImportingOverlay(false);
       if (overlayImportRef.current) {
@@ -419,8 +579,10 @@ export function SettingsView() {
 
   const handleExportAllData = async () => {
     try {
-      const payload = await ExportAllData();
-      downloadJson('cutlogic-backup', payload);
+      const filePath = await ExportAllDataToFile();
+      if (!filePath) {
+        return;
+      }
       showToast('Full backup exported', 'success');
     } catch (error) {
       showToast('Failed to export full backup', 'error');
@@ -511,7 +673,16 @@ export function SettingsView() {
               const isEditingItem = editingItemKey === rowKey;
 
               return (
-                <div key={item.id} className="rounded bg-zinc-50 p-2 dark:bg-zinc-800/50">
+                <div
+                  key={item.id}
+                  onDragOver={(event) => onItemDragOver(event, category.id, group, item.id)}
+                  onDrop={(event) => onItemDrop(event, category.id, group, item.id)}
+                  className={cn(
+                    'rounded bg-zinc-50 p-2 dark:bg-zinc-800/50',
+                    dragOverItemKey === rowKey ? 'ring-2 ring-zinc-400 dark:ring-zinc-500' : '',
+                    draggedItem && draggedItem.itemId === item.id ? 'opacity-50' : '',
+                  )}
+                >
                   {isEditingItem ? (
                     <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_auto_auto]">
                       <Input label="Item" value={editingItemDraft?.name || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), name: event.target.value }))} placeholder="Base" />
@@ -531,7 +702,16 @@ export function SettingsView() {
                       </div>
                     </div>
                   ) : (
-                    <div className="grid items-center gap-3 text-sm md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_auto_auto]">
+                    <div className="grid items-center gap-3 text-sm md:grid-cols-[auto_1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_auto_auto]">
+                      <span
+                        draggable
+                        onDragStart={(event) => onItemDragStart(event, category.id, group, item.id)}
+                        onDragEnd={onItemDragEnd}
+                        className="flex cursor-grab items-center justify-center text-zinc-400 dark:text-zinc-500"
+                        title="Drag to reorder"
+                      >
+                        <GripVertical size={14} />
+                      </span>
                       <span className="font-medium text-zinc-900 dark:text-zinc-100">{item.name}</span>
                       <span className="text-zinc-700 dark:text-zinc-300">L {item.left}</span>
                       <span className="text-zinc-700 dark:text-zinc-300">R {item.right}</span>
@@ -540,7 +720,7 @@ export function SettingsView() {
                       <Button variant="ghost" size="sm" onClick={() => startEditItem(category.id, group, item)}>
                         <Pencil size={14} className="text-zinc-500" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => removeItem(category.id, group, item.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => requestRemoveItem(category.id, group, item)}>
                         <Trash2 size={14} className="text-rose-500" />
                       </Button>
                     </div>
@@ -605,16 +785,16 @@ export function SettingsView() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveSection('overlay-defaults')}
+              onClick={() => setActiveSection('overlay-presets')}
               className={cn(
                 'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                activeSection === 'overlay-defaults'
+                activeSection === 'overlay-presets'
                   ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                   : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800',
               )}
             >
               <DoorOpen size={16} />
-              Overlay Defaults
+              Overlay Presets
             </button>
             <button
               type="button"
@@ -634,7 +814,7 @@ export function SettingsView() {
 
         <Card>
           <CardHeader>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'data' ? 'Data Management' : 'Overlay Defaults'}</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'data' ? 'Data Management' : 'Overlay Presets'}</h3>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeSection === 'theme' ? (
@@ -709,8 +889,8 @@ export function SettingsView() {
                 </div>
 
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
-                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Overlay JSON</h4>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import overlay default categories and their door/drawer items.</p>
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Overlay Presets JSON</h4>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import overlay preset categories and their door/drawer items.</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button variant="secondary" onClick={() => void handleExportOverlay()}>
                       <Download size={16} className="mr-2" />
@@ -762,7 +942,7 @@ export function SettingsView() {
 
                 <div className="rounded-lg border border-rose-300/80 bg-rose-50 p-4 dark:border-rose-900/80 dark:bg-rose-950/20">
                   <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-300">Danger Zone</h4>
-                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">Permanently wipe all jobs, catalog styles, and overlay defaults.</p>
+                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">Permanently wipe all jobs, catalog styles, and overlay presets.</p>
                   <div className="mt-4">
                     <Button
                       variant="danger"
@@ -781,7 +961,7 @@ export function SettingsView() {
             ) : (
               <>
                 <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">Create overlay categories. Each category contains a Doors list and a Drawer Fronts list.</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">Create overlay preset categories. Each category contains a Doors list and a Drawer Fronts list.</p>
                   <Button variant="secondary" size="sm" onClick={addCategory}>
                     <Plus size={14} className="mr-1" />
                     Add Category
@@ -796,8 +976,26 @@ export function SettingsView() {
                   ) : null}
 
                   {overlayCategories.map((category) => (
-                    <div key={category.id} className="rounded-lg bg-zinc-50 p-2 dark:bg-zinc-900/40">
+                    <div
+                      key={category.id}
+                      onDragOver={(event) => onCategoryDragOver(event, category.id)}
+                      onDrop={(event) => onCategoryDrop(event, category.id)}
+                      className={cn(
+                        'rounded-lg bg-zinc-50 p-2 dark:bg-zinc-900/40',
+                        dragOverCategoryId === category.id ? 'ring-2 ring-zinc-400 dark:ring-zinc-500' : '',
+                        draggedCategoryId === category.id ? 'opacity-50' : '',
+                      )}
+                    >
                       <div className="flex items-center gap-2 rounded-md border border-zinc-300 bg-zinc-200 p-1.5 dark:border-zinc-700 dark:bg-zinc-800">
+                        <span
+                          draggable
+                          onDragStart={(event) => onCategoryDragStart(event, category.id)}
+                          onDragEnd={onCategoryDragEnd}
+                          className="cursor-grab rounded p-1 text-zinc-500 dark:text-zinc-400"
+                          title="Drag to reorder category"
+                        >
+                          <GripVertical size={16} />
+                        </span>
                         <button
                           type="button"
                           onClick={() => toggleCategory(category.id)}
@@ -835,6 +1033,9 @@ export function SettingsView() {
                         ) : (
                           <>
                             <span className="flex-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">{category.name || 'Untitled Category'}</span>
+                            <Button variant="ghost" size="sm" onClick={() => duplicateCategory(category.id)} title="Duplicate category">
+                              <Copy size={14} className="text-zinc-500" />
+                            </Button>
                             <Button variant="ghost" size="sm" onClick={() => startEditCategory(category)}>
                               <Pencil size={14} className="text-zinc-500" />
                             </Button>
@@ -844,7 +1045,7 @@ export function SettingsView() {
                         <span className="text-xs text-zinc-500 dark:text-zinc-400">
                           {(category.doorItems || []).length} door / {(category.drawerFrontItems || []).length} drawer
                         </span>
-                        <Button variant="ghost" size="sm" onClick={() => removeCategory(category.id)}>
+                        <Button variant="ghost" size="sm" onClick={() => requestRemoveCategory(category)}>
                           <Trash2 size={14} className="text-rose-500" />
                         </Button>
                       </div>
@@ -862,7 +1063,7 @@ export function SettingsView() {
                 <div className="flex justify-end">
                   <Button onClick={() => void saveOverlayDefaults()} disabled={isSavingOverlays}>
                     <Save size={16} className="mr-2" />
-                    {isSavingOverlays ? 'Saving...' : 'Save Overlay Defaults'}
+                    {isSavingOverlays ? 'Saving...' : 'Save Overlay Presets'}
                   </Button>
                 </div>
               </>
@@ -870,6 +1071,18 @@ export function SettingsView() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        title={deleteTarget?.type === 'category' ? 'Delete Overlay Preset' : 'Delete Overlay Preset Item'}
+        message={deleteTarget?.type === 'category'
+          ? `Delete "${deleteTarget?.categoryName || 'this preset'}" and all its items?`
+          : `Delete "${deleteTarget?.itemName || 'this item'}" from this preset?`}
+        warning={deleteTarget?.type === 'category' ? 'This action permanently removes the category and all its door/drawer items.' : undefined}
+        confirmLabel="Delete"
+      />
 
       <Modal
         isOpen={isImportConfirmOpen}
@@ -887,7 +1100,7 @@ export function SettingsView() {
             {pendingImportKind === 'catalog'
               ? 'Importing catalog JSON will replace all existing catalog styles.'
               : pendingImportKind === 'overlay'
-                ? 'Importing overlay JSON will replace all existing overlay defaults.'
+                ? 'Importing overlay presets JSON will replace all existing overlay presets.'
                 : 'Importing full backup will replace all current app data.'}
           </p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">This action cannot be undone.</p>
@@ -926,7 +1139,7 @@ export function SettingsView() {
       >
         <div className="space-y-4">
           <p className="text-zinc-700 dark:text-zinc-300">
-            This permanently deletes all jobs, catalog styles, and overlay defaults.
+            This permanently deletes all jobs, catalog styles, and overlay presets.
           </p>
           <Input
             label={`Type ${wipeConfirmPhrase} to confirm`}
