@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { MeasurementInput } from '../ui/MeasurementInput';
-import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
+import { useMeasurement } from '../ui/MeasurementProvider';
+import { formatLengthInput, parseLengthInput } from '../../lib/units';
 
 const emptyForm = {
   family: '',
   variant: 'Standard',
-  styleUse: 'both',
+  styleUse: 'door',
   stileWidth: '2',
   railWidth: '2',
   tenonLength: '3/8',
@@ -15,7 +16,9 @@ const emptyForm = {
   panelGap: '1/8',
 };
 
-export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
+export function CatalogForm({ style, initialFamily = '', initialStyleUse = 'door', onSubmit, onCancel }) {
+  const { measurementSystem } = useMeasurement();
+  const unitLabel = measurementSystem === 'metric' ? 'mm' : 'in';
   const [formData, setFormData] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const familyValue = typeof formData.family === 'string' ? formData.family : '';
@@ -25,7 +28,13 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
     if (!style) {
       setFormData({
         ...emptyForm,
+        stileWidth: formatLengthInput(2, measurementSystem),
+        railWidth: formatLengthInput(2, measurementSystem),
+        tenonLength: formatLengthInput(0.375, measurementSystem),
+        panelThickness: formatLengthInput(0.25, measurementSystem),
+        panelGap: formatLengthInput(0.125, measurementSystem),
         family: typeof initialFamily === 'string' ? initialFamily : '',
+        styleUse: initialStyleUse === 'drawer-front' ? 'drawer-front-top' : (typeof initialStyleUse === 'string' ? initialStyleUse : 'door'),
       });
       setErrors({});
       return;
@@ -34,14 +43,14 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
     setFormData({
       family: style.family || style.name || '',
       variant: style.variant || 'Standard',
-      styleUse: style.styleUse || 'both',
-      stileWidth: formatMeasurement(style.stileWidth),
-      railWidth: formatMeasurement(style.railWidth),
-      tenonLength: formatMeasurement(style.tenonLength),
-      panelThickness: formatMeasurement(style.panelThickness),
-      panelGap: formatMeasurement(style.panelGap),
+      styleUse: style.styleUse === 'drawer-front' ? 'drawer-front-top' : (style.styleUse || 'door'),
+      stileWidth: formatLengthInput(style.stileWidth, measurementSystem),
+      railWidth: formatLengthInput(style.railWidth, measurementSystem),
+      tenonLength: formatLengthInput(style.tenonLength, measurementSystem),
+      panelThickness: formatLengthInput(style.panelThickness, measurementSystem),
+      panelGap: formatLengthInput(style.panelGap, measurementSystem),
     });
-  }, [style, initialFamily]);
+  }, [style, initialFamily, initialStyleUse, measurementSystem]);
 
   const onChange = (event) => {
     const { name, value } = event.target;
@@ -56,19 +65,19 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
     }
 
     const parsed = {
-      stileWidth: parseMeasurement(formData.stileWidth),
-      railWidth: parseMeasurement(formData.railWidth),
-      tenonLength: parseMeasurement(formData.tenonLength),
-      panelThickness: parseMeasurement(formData.panelThickness),
-      panelGap: parseMeasurement(formData.panelGap),
+      stileWidth: parseLengthInput(formData.stileWidth, measurementSystem),
+      railWidth: parseLengthInput(formData.railWidth, measurementSystem),
+      tenonLength: parseLengthInput(formData.tenonLength, measurementSystem),
+      panelThickness: parseLengthInput(formData.panelThickness, measurementSystem),
+      panelGap: parseLengthInput(formData.panelGap, measurementSystem),
     };
 
     const nextErrors = {
-      stileWidth: parsed.stileWidth === null ? 'Enter a fraction or decimal value' : '',
-      railWidth: parsed.railWidth === null ? 'Enter a fraction or decimal value' : '',
-      tenonLength: parsed.tenonLength === null ? 'Enter a fraction or decimal value' : '',
-      panelThickness: parsed.panelThickness === null ? 'Enter a fraction or decimal value' : '',
-      panelGap: parsed.panelGap === null ? 'Enter a fraction or decimal value' : '',
+      stileWidth: parsed.stileWidth === null ? 'Enter a valid measurement' : '',
+      railWidth: parsed.railWidth === null ? 'Enter a valid measurement' : '',
+      tenonLength: parsed.tenonLength === null ? 'Enter a valid measurement' : '',
+      panelThickness: parsed.panelThickness === null ? 'Enter a valid measurement' : '',
+      panelGap: parsed.panelGap === null ? 'Enter a valid measurement' : '',
     };
 
     setErrors(nextErrors);
@@ -79,7 +88,7 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
     onSubmit({
       family: formData.family.trim(),
       variant: isSlabFamily ? '' : (formData.variant.trim() || 'Standard'),
-      styleUse: isSlabFamily ? 'both' : (formData.styleUse || 'both'),
+      styleUse: isSlabFamily ? 'both' : (formData.styleUse || 'door'),
       stileWidth: parsed.stileWidth,
       railWidth: parsed.railWidth,
       tenonLength: parsed.tenonLength,
@@ -93,7 +102,7 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
       <div className="grid grid-cols-2 gap-3">
         <Input label="Style Family" name="family" value={formData.family} onChange={onChange} required placeholder="Shaker" />
         <Input
-          label="Variant"
+          label="Frame"
           name="variant"
           value={isSlabFamily ? '' : formData.variant}
           onChange={onChange}
@@ -101,24 +110,11 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           disabled={isSlabFamily}
         />
       </div>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300" htmlFor="styleUse">
-          Applies To
-        </label>
-        <select
-          id="styleUse"
-          name="styleUse"
-          value={isSlabFamily ? 'both' : formData.styleUse}
-          onChange={onChange}
-          disabled={isSlabFamily}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-        >
-          <option value="both">Both</option>
-          <option value="door">Door</option>
-          <option value="drawer-front">Drawer Front</option>
-        </select>
-      </div>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">Use fractions like 1 1/2 or decimals like 1.5.</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        {measurementSystem === 'metric'
+          ? 'Use millimeters (decimals allowed).'
+          : 'Use fractions like 1 1/2 or decimals like 1.5.'}
+      </p>
       <div className="grid grid-cols-2 gap-3">
         <MeasurementInput
           label="Stile Width"
@@ -126,7 +122,8 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           value={formData.stileWidth}
           onChange={onChange}
           error={errors.stileWidth}
-          placeholder="2 1/4"
+          suffix={unitLabel}
+          placeholder={measurementSystem === 'metric' ? '57' : '2 1/4'}
         />
         <MeasurementInput
           label="Rail Width"
@@ -134,7 +131,8 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           value={formData.railWidth}
           onChange={onChange}
           error={errors.railWidth}
-          placeholder="2"
+          suffix={unitLabel}
+          placeholder={measurementSystem === 'metric' ? '51' : '2'}
         />
         <MeasurementInput
           label="Tenon Length"
@@ -142,7 +140,8 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           value={formData.tenonLength}
           onChange={onChange}
           error={errors.tenonLength}
-          placeholder="3/8"
+          suffix={unitLabel}
+          placeholder={measurementSystem === 'metric' ? '10' : '3/8'}
         />
         <MeasurementInput
           label="Panel Thickness"
@@ -150,7 +149,8 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           value={formData.panelThickness}
           onChange={onChange}
           error={errors.panelThickness}
-          placeholder="1/4"
+          suffix={unitLabel}
+          placeholder={measurementSystem === 'metric' ? '6' : '1/4'}
         />
         <MeasurementInput
           label="Panel Gap"
@@ -158,7 +158,8 @@ export function CatalogForm({ style, initialFamily = '', onSubmit, onCancel }) {
           value={formData.panelGap}
           onChange={onChange}
           error={errors.panelGap}
-          placeholder="1/8"
+          suffix={unitLabel}
+          placeholder={measurementSystem === 'metric' ? '3' : '1/8'}
         />
       </div>
 

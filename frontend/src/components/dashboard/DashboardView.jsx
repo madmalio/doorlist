@@ -51,7 +51,7 @@ export function DashboardView({ onOpenJob }) {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [jobsCount, setJobsCount] = useState(0);
-  const [stylesCount, setStylesCount] = useState(0);
+  const [doorFamiliesCount, setDoorFamiliesCount] = useState(0);
   const [doorStyles, setDoorStyles] = useState([]);
   const [overlayCategories, setOverlayCategories] = useState([]);
   const [recentJobs, setRecentJobs] = useState([]);
@@ -76,10 +76,20 @@ export function DashboardView({ onOpenJob }) {
 
         const jobs = Array.isArray(jobsResponse) ? jobsResponse : [];
         const styles = Array.isArray(stylesResponse) ? stylesResponse : [];
+        const uniqueFamilies = new Set(
+          styles
+            .map((style) => {
+              const family = String(style?.family || '').trim();
+              const fallbackName = String(style?.name || '').trim();
+              return family || fallbackName;
+            })
+            .filter(Boolean)
+            .map((value) => value.toLowerCase()),
+        );
         const sortedJobs = [...jobs].sort((left, right) => new Date(right.createdDate).getTime() - new Date(left.createdDate).getTime());
 
         setJobsCount(jobs.length);
-        setStylesCount(styles.length);
+        setDoorFamiliesCount(uniqueFamilies.size);
         setDoorStyles(styles);
         setOverlayCategories(Array.isArray(overlayCategoriesResponse) ? overlayCategoriesResponse : []);
         setRecentJobs(sortedJobs.slice(0, 5));
@@ -87,7 +97,7 @@ export function DashboardView({ onOpenJob }) {
         if (!cancelled) {
           setErrorMessage('Unable to load dashboard data right now.');
           setJobsCount(0);
-          setStylesCount(0);
+          setDoorFamiliesCount(0);
           setDoorStyles([]);
           setOverlayCategories([]);
           setRecentJobs([]);
@@ -113,7 +123,7 @@ export function DashboardView({ onOpenJob }) {
       if (!style?.id) {
         return;
       }
-      map.set(style.id, style.name || 'Unnamed Style');
+      map.set(style.id, (style.name || '').trim() || 'N/A');
     });
     return map;
   }, [doorStyles]);
@@ -150,10 +160,10 @@ export function DashboardView({ onOpenJob }) {
 
         <Card>
           <CardHeader>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Door Styles</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Doors</p>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">{isLoading ? '...' : stylesCount}</p>
+            <p className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">{isLoading ? '...' : doorFamiliesCount}</p>
           </CardContent>
         </Card>
 
@@ -193,7 +203,7 @@ export function DashboardView({ onOpenJob }) {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{job.customerName || 'Customer: N/A'}</span>
                         <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">
-                          {job.name || 'Untitled Job'} | Style: {styleNameById.get(job.defaultStyleId) || 'N/A'} | Overlay:{' '}
+                          {job.name || 'Untitled Job'} | <span className="font-semibold text-zinc-700 dark:text-zinc-300">{job.woodChoice || 'N/A'}</span> | {styleNameById.get(job.defaultStyleId) || 'N/A'} | Overlay:{' '}
                           {overlayNameById.get(job.defaultOverlayCategoryId) || 'N/A'}
                         </span>
                       </span>

@@ -8,6 +8,7 @@ export namespace main {
 	    opHeight: number;
 	    styleId: string;
 	    overlayType: string;
+	    drawerFrontPosition: string;
 	    overlaySubcategoryId: string;
 	    customOverlay: number;
 	    doorType: string;
@@ -33,6 +34,7 @@ export namespace main {
 	        this.opHeight = source["opHeight"];
 	        this.styleId = source["styleId"];
 	        this.overlayType = source["overlayType"];
+	        this.drawerFrontPosition = source["drawerFrontPosition"];
 	        this.overlaySubcategoryId = source["overlaySubcategoryId"];
 	        this.customOverlay = source["customOverlay"];
 	        this.doorType = source["doorType"];
@@ -50,6 +52,7 @@ export namespace main {
 	    id: string;
 	    customerName: string;
 	    name: string;
+	    woodChoice?: string;
 	    productionStatus: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
@@ -74,6 +77,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.customerName = source["customerName"];
 	        this.name = source["name"];
+	        this.woodChoice = source["woodChoice"];
 	        this.productionStatus = source["productionStatus"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
@@ -185,9 +189,28 @@ export namespace main {
 	        this.bottom = source["bottom"];
 	    }
 	}
+	export class OverlayValues {
+	    left: number;
+	    right: number;
+	    top: number;
+	    bottom: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new OverlayValues(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.left = source["left"];
+	        this.right = source["right"];
+	        this.top = source["top"];
+	        this.bottom = source["bottom"];
+	    }
+	}
 	export class OverlayCategory {
 	    id: string;
 	    name: string;
+	    default?: OverlayValues;
 	    items?: OverlaySubcategory[];
 	    doorItems?: OverlaySubcategory[];
 	    drawerFrontItems?: OverlaySubcategory[];
@@ -200,6 +223,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
+	        this.default = this.convertValues(source["default"], OverlayValues);
 	        this.items = this.convertValues(source["items"], OverlaySubcategory);
 	        this.doorItems = this.convertValues(source["doorItems"], OverlaySubcategory);
 	        this.drawerFrontItems = this.convertValues(source["drawerFrontItems"], OverlaySubcategory);
@@ -225,7 +249,11 @@ export namespace main {
 	}
 	export class AppSettings {
 	    theme: string;
+	    measurementSystem?: string;
+	    measurementConfirmed?: boolean;
+	    onboardingDismissed?: boolean;
 	    overlayCategories: OverlayCategory[];
+	    woodPresets?: string[];
 	    overlayPresets?: OverlayPreset[];
 	    seededDefaultSlab?: boolean;
 	
@@ -236,7 +264,11 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.theme = source["theme"];
+	        this.measurementSystem = source["measurementSystem"];
+	        this.measurementConfirmed = source["measurementConfirmed"];
+	        this.onboardingDismissed = source["onboardingDismissed"];
 	        this.overlayCategories = this.convertValues(source["overlayCategories"], OverlayCategory);
+	        this.woodPresets = source["woodPresets"];
 	        this.overlayPresets = this.convertValues(source["overlayPresets"], OverlayPreset);
 	        this.seededDefaultSlab = source["seededDefaultSlab"];
 	    }
@@ -335,6 +367,7 @@ export namespace main {
 	export class CreateJobRequest {
 	    customerName: string;
 	    project: string;
+	    woodChoice?: string;
 	    productionStatus: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
@@ -355,6 +388,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.customerName = source["customerName"];
 	        this.project = source["project"];
+	        this.woodChoice = source["woodChoice"];
 	        this.productionStatus = source["productionStatus"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
@@ -380,6 +414,7 @@ export namespace main {
 	    label: string;
 	    slabUse?: string;
 	    slabGrain?: string;
+	    drawerFrontPosition?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CutListItem(source);
@@ -398,6 +433,7 @@ export namespace main {
 	        this.label = source["label"];
 	        this.slabUse = source["slabUse"];
 	        this.slabGrain = source["slabGrain"];
+	        this.drawerFrontPosition = source["drawerFrontPosition"];
 	    }
 	}
 	export class CutListResponse {
@@ -574,9 +610,91 @@ export namespace main {
 	}
 	
 	
+	
+	export class QuickDoorCutListRequest {
+	    name: string;
+	    qty: number;
+	    opWidth: number;
+	    opHeight: number;
+	    styleId: string;
+	    doorType: string;
+	    buttGap: number;
+	    overlayType: string;
+	    drawerFrontPosition: string;
+	    panelLayout: string;
+	    slabGrain: string;
+	    useCustomOverlay: boolean;
+	    overlayLeft: number;
+	    overlayRight: number;
+	    overlayTop: number;
+	    overlayBottom: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new QuickDoorCutListRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.qty = source["qty"];
+	        this.opWidth = source["opWidth"];
+	        this.opHeight = source["opHeight"];
+	        this.styleId = source["styleId"];
+	        this.doorType = source["doorType"];
+	        this.buttGap = source["buttGap"];
+	        this.overlayType = source["overlayType"];
+	        this.drawerFrontPosition = source["drawerFrontPosition"];
+	        this.panelLayout = source["panelLayout"];
+	        this.slabGrain = source["slabGrain"];
+	        this.useCustomOverlay = source["useCustomOverlay"];
+	        this.overlayLeft = source["overlayLeft"];
+	        this.overlayRight = source["overlayRight"];
+	        this.overlayTop = source["overlayTop"];
+	        this.overlayBottom = source["overlayBottom"];
+	    }
+	}
+	export class QuickDoorCutListResponse {
+	    name: string;
+	    finishedWidth: number;
+	    finishedHeight: number;
+	    leafWidth?: number;
+	    items: CutListItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new QuickDoorCutListResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.finishedWidth = source["finishedWidth"];
+	        this.finishedHeight = source["finishedHeight"];
+	        this.leafWidth = source["leafWidth"];
+	        this.items = this.convertValues(source["items"], CutListItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class UpdateJobRequest {
 	    customerName: string;
 	    project: string;
+	    woodChoice?: string;
 	    productionStatus: string;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
@@ -597,6 +715,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.customerName = source["customerName"];
 	        this.project = source["project"];
+	        this.woodChoice = source["woodChoice"];
 	        this.productionStatus = source["productionStatus"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
@@ -611,7 +730,11 @@ export namespace main {
 	    }
 	}
 	export class UpdateSettingsRequest {
-	    theme: string;
+	    theme?: string;
+	    measurementSystem?: string;
+	    measurementConfirmed?: boolean;
+	    onboardingDismissed?: boolean;
+	    woodPresets?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new UpdateSettingsRequest(source);
@@ -620,6 +743,26 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.theme = source["theme"];
+	        this.measurementSystem = source["measurementSystem"];
+	        this.measurementConfirmed = source["measurementConfirmed"];
+	        this.onboardingDismissed = source["onboardingDismissed"];
+	        this.woodPresets = source["woodPresets"];
+	    }
+	}
+	export class WoodPresetsDataPayload {
+	    version: number;
+	    exportedAt?: string;
+	    woodPresets: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WoodPresetsDataPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.exportedAt = source["exportedAt"];
+	        this.woodPresets = source["woodPresets"];
 	    }
 	}
 

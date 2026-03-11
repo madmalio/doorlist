@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FolderOpen, Library, Search, Settings } from 'lucide-react';
+import { FolderOpen, Library, Search, Settings, WandSparkles } from 'lucide-react';
 import { SearchGlobal } from '../../../wailsjs/go/main/App';
 
 const navCommands = [
   { key: 'jobs', label: 'Go to Jobs', subtitle: 'View job list', view: 'jobs' },
+  { key: 'quick-door', label: 'Go to Quick Door', subtitle: 'Create one-off door cut sheet', view: 'quick-door' },
   { key: 'catalog', label: 'Go to Catalog', subtitle: 'View door style catalog', view: 'catalog' },
   { key: 'settings', label: 'Go to Settings', subtitle: 'View app settings', view: 'settings' },
 ];
 
 function iconForView(view) {
   if (view === 'jobs') return <FolderOpen size={16} className="text-zinc-300" />;
+  if (view === 'quick-door') return <WandSparkles size={16} className="text-zinc-300" />;
   if (view === 'catalog') return <Library size={16} className="text-zinc-300" />;
   if (view === 'settings') return <Settings size={16} className="text-zinc-300" />;
   return <Search size={16} className="text-zinc-300" />;

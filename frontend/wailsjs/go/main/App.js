@@ -42,8 +42,20 @@ export function ExportOverlayDataToFile() {
   return window['go']['main']['App']['ExportOverlayDataToFile']();
 }
 
+export function ExportWoodPresetsData() {
+  return window['go']['main']['App']['ExportWoodPresetsData']();
+}
+
+export function ExportWoodPresetsDataToFile() {
+  return window['go']['main']['App']['ExportWoodPresetsDataToFile']();
+}
+
 export function GenerateCutList(arg1) {
   return window['go']['main']['App']['GenerateCutList'](arg1);
+}
+
+export function GenerateQuickDoorCutList(arg1) {
+  return window['go']['main']['App']['GenerateQuickDoorCutList'](arg1);
 }
 
 export function GetJob(arg1) {
@@ -76,6 +88,10 @@ export function ImportCatalogData(arg1) {
 
 export function ImportOverlayData(arg1) {
   return window['go']['main']['App']['ImportOverlayData'](arg1);
+}
+
+export function ImportWoodPresetsData(arg1) {
+  return window['go']['main']['App']['ImportWoodPresetsData'](arg1);
 }
 
 export function LoadDoorStyles() {

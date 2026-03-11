@@ -22,7 +22,13 @@ export function ExportOverlayData():Promise<main.OverlayDataPayload>;
 
 export function ExportOverlayDataToFile():Promise<string>;
 
+export function ExportWoodPresetsData():Promise<main.WoodPresetsDataPayload>;
+
+export function ExportWoodPresetsDataToFile():Promise<string>;
+
 export function GenerateCutList(arg1:string):Promise<main.CutListResponse>;
+
+export function GenerateQuickDoorCutList(arg1:main.QuickDoorCutListRequest):Promise<main.QuickDoorCutListResponse>;
 
 export function GetJob(arg1:string):Promise<main.Job>;
 
@@ -39,6 +45,8 @@ export function ImportAllData(arg1:main.AppBackupPayload):Promise<main.AppBackup
 export function ImportCatalogData(arg1:main.CatalogDataPayload):Promise<Array<main.DoorStyle>>;
 
 export function ImportOverlayData(arg1:main.OverlayDataPayload):Promise<Array<main.OverlayCategory>>;
+
+export function ImportWoodPresetsData(arg1:main.WoodPresetsDataPayload):Promise<Array<string>>;
 
 export function LoadDoorStyles():Promise<Array<main.DoorStyle>>;
 

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Database, DoorOpen, Download, GripVertical, Monitor, Moon, Pencil, Plus, Save, Sun, SunMoon, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Database, DoorOpen, Download, GripVertical, List, Monitor, Moon, Pencil, Plus, Save, Sun, SunMoon, Trash2, Upload, X } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useTheme } from '../ui/ThemeProvider';
+import { useMeasurement } from '../ui/MeasurementProvider';
 import { cn } from '../../lib/utils';
-import { ExportAllDataToFile, ExportCatalogDataToFile, ExportOverlayDataToFile, GetOverlayCategories, ImportAllData, ImportCatalogData, ImportOverlayData, SaveOverlayCategories, WipeAllData } from '../../../wailsjs/go/main/App';
-import { formatMeasurement, parseMeasurement } from '../../lib/measurements';
+import { ExportAllDataToFile, ExportCatalogDataToFile, ExportOverlayDataToFile, ExportWoodPresetsDataToFile, GetOverlayCategories, GetSettings, ImportAllData, ImportCatalogData, ImportOverlayData, ImportWoodPresetsData, SaveOverlayCategories, UpdateSettings, WipeAllData } from '../../../wailsjs/go/main/App';
+import { formatLengthInput, parseLengthInput } from '../../lib/units';
 import { Button } from '../ui/Button';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { Input } from '../ui/Input';
@@ -27,6 +28,12 @@ function createCategory() {
   return {
     id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     name: '',
+    default: {
+      left: '',
+      right: '',
+      top: '',
+      bottom: '',
+    },
     doorItems: [],
     drawerFrontItems: [],
   };
@@ -36,14 +43,15 @@ function createLocalId() {
   return `${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 }
 
-function createOverlayItem() {
+function createOverlayItem(measurementSystem = 'imperial') {
+  const defaultValue = measurementSystem === 'metric' ? '13' : '1/2';
   return {
     id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     name: '',
-    left: '1/2',
-    right: '1/2',
-    top: '1/2',
-    bottom: '1/2',
+    left: defaultValue,
+    right: defaultValue,
+    top: defaultValue,
+    bottom: defaultValue,
   };
 }
 
@@ -68,19 +76,32 @@ function readCollapsedCategoryIds(storageKey) {
   }
 }
 
-function normalizeCategory(category) {
+function normalizeCategory(category, measurementSystem = 'imperial') {
   const mapItems = (items) => (Array.isArray(items) ? items : []).map((item) => ({
     id: item.id,
     name: item.name,
-    left: formatMeasurement(item.left),
-    right: formatMeasurement(item.right),
-    top: formatMeasurement(item.top),
-    bottom: formatMeasurement(item.bottom),
+    left: formatLengthInput(item.left, measurementSystem),
+    right: formatLengthInput(item.right, measurementSystem),
+    top: formatLengthInput(item.top, measurementSystem),
+    bottom: formatLengthInput(item.bottom, measurementSystem),
   }));
 
   return {
     id: category.id,
     name: category.name,
+    default: category.default
+      ? {
+          left: formatLengthInput(category.default.left, measurementSystem),
+          right: formatLengthInput(category.default.right, measurementSystem),
+          top: formatLengthInput(category.default.top, measurementSystem),
+          bottom: formatLengthInput(category.default.bottom, measurementSystem),
+        }
+      : {
+          left: '',
+          right: '',
+          top: '',
+          bottom: '',
+        },
     doorItems: mapItems(category.doorItems || category.items),
     drawerFrontItems: mapItems(category.drawerFrontItems),
   };
@@ -90,9 +111,12 @@ function categoryItemKey(categoryId, group, itemId) {
   return `${categoryId}:${group}:${itemId}`;
 }
 
-export function SettingsView() {
+export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0, onOpenWelcome, onMeasurementConfirmed, onOverlayDefaultsSaved }) {
   const { theme, setTheme } = useTheme();
-  const [activeSection, setActiveSection] = useState('theme');
+  const { measurementSystem, setMeasurementSystem } = useMeasurement();
+  const measurementPlaceholder = measurementSystem === 'metric' ? '13' : '1/2';
+  const unitLabel = measurementSystem === 'metric' ? 'mm' : 'in';
+  const [activeSection, setActiveSection] = useState(initialSection || 'theme');
   const [overlayCategories, setOverlayCategories] = useState([]);
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => readCollapsedCategoryIds(overlayCollapsedStorageKey));
   const [overlayLoaded, setOverlayLoaded] = useState(false);
@@ -101,18 +125,28 @@ export function SettingsView() {
   const [categoryNameDraft, setCategoryNameDraft] = useState('');
 
   const [addingItemTarget, setAddingItemTarget] = useState(null);
-  const [newItemDraft, setNewItemDraft] = useState(createOverlayItem());
+  const [newItemDraft, setNewItemDraft] = useState(createOverlayItem(measurementSystem));
+  const [measurementConfirmed, setMeasurementConfirmed] = useState(false);
 
   const [editingItemKey, setEditingItemKey] = useState(null);
   const [editingItemDraft, setEditingItemDraft] = useState(null);
 
   const [isSavingOverlays, setIsSavingOverlays] = useState(false);
+  const [isSavingWoodPresets, setIsSavingWoodPresets] = useState(false);
+  const [woodPresets, setWoodPresets] = useState([]);
+  const [newWoodPreset, setNewWoodPreset] = useState('');
+  const [draggedWoodIndex, setDraggedWoodIndex] = useState(-1);
+  const [dragOverWoodIndex, setDragOverWoodIndex] = useState(-1);
   const [isImportingCatalog, setIsImportingCatalog] = useState(false);
   const [isImportingOverlay, setIsImportingOverlay] = useState(false);
+  const [isImportingWoodPresets, setIsImportingWoodPresets] = useState(false);
   const [isImportingBackup, setIsImportingBackup] = useState(false);
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
   const [pendingImportKind, setPendingImportKind] = useState('');
   const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [isMeasurementConfirmOpen, setIsMeasurementConfirmOpen] = useState(false);
+  const [pendingMeasurementSystem, setPendingMeasurementSystem] = useState('');
+  const [isSavingMeasurement, setIsSavingMeasurement] = useState(false);
   const [isWipingData, setIsWipingData] = useState(false);
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [wipeConfirmText, setWipeConfirmText] = useState('');
@@ -124,15 +158,150 @@ export function SettingsView() {
   const catalogImportRef = useRef(null);
   const overlayImportRef = useRef(null);
   const backupImportRef = useRef(null);
+  const woodPresetsImportRef = useRef(null);
+  const shouldFocusOverlayDefaultRef = useRef(false);
+  const shouldCreateOverlayCategoryRef = useRef(false);
   const { showToast } = useToast();
   const isWipeConfirmed = wipeConfirmText.trim() === wipeConfirmPhrase;
+
+  const requestMeasurementSystemChange = (nextSystem) => {
+    if (!nextSystem) {
+      return;
+    }
+    if (nextSystem === measurementSystem && measurementConfirmed) {
+      return;
+    }
+    setPendingMeasurementSystem(nextSystem);
+    setIsMeasurementConfirmOpen(true);
+  };
+
+  const cancelMeasurementSystemChange = () => {
+    if (isSavingMeasurement) {
+      return;
+    }
+    setIsMeasurementConfirmOpen(false);
+    setPendingMeasurementSystem('');
+  };
+
+  const confirmMeasurementSystemChange = async () => {
+    if (!pendingMeasurementSystem) {
+      setIsMeasurementConfirmOpen(false);
+      setPendingMeasurementSystem('');
+      return;
+    }
+
+    setIsSavingMeasurement(true);
+    try {
+      const updated = await setMeasurementSystem(pendingMeasurementSystem);
+      const confirmed = Boolean(updated?.measurementConfirmed);
+      setMeasurementConfirmed(confirmed);
+      if (confirmed) {
+        onMeasurementConfirmed?.();
+      }
+      showToast(`Measurement system set to ${pendingMeasurementSystem === 'metric' ? 'Metric (mm)' : 'Imperial (in)'}`, 'success');
+      setIsMeasurementConfirmOpen(false);
+      setPendingMeasurementSystem('');
+    } catch {
+      showToast('Failed to update measurement system', 'error');
+    } finally {
+      setIsSavingMeasurement(false);
+    }
+  };
+
+  useEffect(() => {
+    if (initialSection) {
+      setActiveSection(initialSection);
+    }
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (overlaySetupIntent <= 0) {
+      return;
+    }
+    setActiveSection('overlay-presets');
+    shouldFocusOverlayDefaultRef.current = true;
+    shouldCreateOverlayCategoryRef.current = true;
+  }, [overlaySetupIntent]);
+
+  useEffect(() => {
+    if (activeSection !== 'overlay-presets' || !overlayLoaded || !shouldFocusOverlayDefaultRef.current) {
+      return;
+    }
+
+    if (overlayCategories.length === 0 && shouldCreateOverlayCategoryRef.current) {
+      addCategory('New Overlay');
+      shouldCreateOverlayCategoryRef.current = false;
+      return;
+    }
+
+    let targetInputId = '';
+    let targetCategoryId = '';
+    for (const category of overlayCategories) {
+      const categoryId = category?.id;
+      if (!categoryId) {
+        continue;
+      }
+
+      const defaults = category.default || {};
+      if (!String(defaults.left || '').trim()) {
+        targetCategoryId = categoryId;
+        targetInputId = `overlay-default-left-${categoryId}`;
+        break;
+      }
+      if (!String(defaults.right || '').trim()) {
+        targetCategoryId = categoryId;
+        targetInputId = `overlay-default-right-${categoryId}`;
+        break;
+      }
+      if (!String(defaults.top || '').trim()) {
+        targetCategoryId = categoryId;
+        targetInputId = `overlay-default-top-${categoryId}`;
+        break;
+      }
+      if (!String(defaults.bottom || '').trim()) {
+        targetCategoryId = categoryId;
+        targetInputId = `overlay-default-bottom-${categoryId}`;
+        break;
+      }
+    }
+
+    if (!targetInputId && overlayCategories.length > 0 && overlayCategories[0]?.id) {
+      targetCategoryId = overlayCategories[0].id;
+      targetInputId = `overlay-default-left-${targetCategoryId}`;
+    }
+
+    if (targetCategoryId) {
+      setCollapsedCategoryIds((prev) => prev.filter((id) => id !== targetCategoryId));
+    }
+
+    if (targetInputId) {
+      let attempt = 0;
+      const tryFocus = () => {
+        const element = document.getElementById(targetInputId);
+        if (element) {
+          element.focus();
+          element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
+        if (attempt >= 5) {
+          return;
+        }
+        attempt += 1;
+        window.setTimeout(tryFocus, 60);
+      };
+
+      window.requestAnimationFrame(tryFocus);
+    }
+
+    shouldFocusOverlayDefaultRef.current = false;
+  }, [activeSection, overlayCategories, overlayLoaded]);
 
   useEffect(() => {
     const loadOverlayCategories = async () => {
       try {
         const categories = await GetOverlayCategories();
         const safe = Array.isArray(categories) ? categories : [];
-        setOverlayCategories(safe.map((category) => normalizeCategory(category)));
+        setOverlayCategories(safe.map((category) => normalizeCategory(category, measurementSystem)));
       } catch (error) {
         setOverlayCategories([]);
         showToast('Failed to load overlay presets', 'error');
@@ -142,6 +311,22 @@ export function SettingsView() {
     };
 
     void loadOverlayCategories();
+  }, [showToast, measurementSystem]);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const settings = await GetSettings();
+        setWoodPresets(Array.isArray(settings?.woodPresets) ? settings.woodPresets : []);
+        setMeasurementConfirmed(Boolean(settings?.measurementConfirmed));
+      } catch (error) {
+        setWoodPresets([]);
+        setMeasurementConfirmed(false);
+        showToast('Failed to load settings', 'error');
+      }
+    };
+
+    void loadSettings();
   }, [showToast]);
 
   useEffect(() => {
@@ -177,12 +362,16 @@ export function SettingsView() {
     return next;
   };
 
-  const addCategory = () => {
+  const addCategory = (initialName = '') => {
     const category = createCategory();
+    const trimmedName = initialName.trim();
+    if (trimmedName) {
+      category.name = trimmedName;
+    }
     setOverlayCategories((prev) => [...prev, category]);
     setCollapsedCategoryIds((prev) => prev.filter((id) => id !== category.id));
     setEditingCategoryId(category.id);
-    setCategoryNameDraft('');
+    setCategoryNameDraft(trimmedName);
   };
 
   const removeCategory = (categoryId) => {
@@ -212,6 +401,19 @@ export function SettingsView() {
       ...source,
       id: createLocalId(),
       name: source.name ? `${source.name} Copy` : 'Untitled Category Copy',
+      default: source.default
+        ? {
+            left: source.default.left,
+            right: source.default.right,
+            top: source.default.top,
+            bottom: source.default.bottom,
+          }
+        : {
+            left: '',
+            right: '',
+            top: '',
+            bottom: '',
+          },
       doorItems: cloneItems(source.doorItems),
       drawerFrontItems: cloneItems(source.drawerFrontItems),
     };
@@ -302,12 +504,12 @@ export function SettingsView() {
 
   const startAddItem = (categoryId, group) => {
     setAddingItemTarget({ categoryId, group });
-    setNewItemDraft(createOverlayItem());
+    setNewItemDraft(createOverlayItem(measurementSystem));
   };
 
   const cancelAddItem = () => {
     setAddingItemTarget(null);
-    setNewItemDraft(createOverlayItem());
+    setNewItemDraft(createOverlayItem(measurementSystem));
   };
 
   const commitAddItem = (categoryId, group) => {
@@ -316,10 +518,10 @@ export function SettingsView() {
       return;
     }
 
-    const left = parseMeasurement(newItemDraft.left);
-    const right = parseMeasurement(newItemDraft.right);
-    const top = parseMeasurement(newItemDraft.top);
-    const bottom = parseMeasurement(newItemDraft.bottom);
+    const left = parseLengthInput(newItemDraft.left, measurementSystem);
+    const right = parseLengthInput(newItemDraft.right, measurementSystem);
+    const top = parseLengthInput(newItemDraft.top, measurementSystem);
+    const bottom = parseLengthInput(newItemDraft.bottom, measurementSystem);
     if (left === null || right === null || top === null || bottom === null) {
       showToast('Item overlay values must be valid fractions or decimals', 'error');
       return;
@@ -429,10 +631,10 @@ export function SettingsView() {
       return;
     }
 
-    const left = parseMeasurement(editingItemDraft.left);
-    const right = parseMeasurement(editingItemDraft.right);
-    const top = parseMeasurement(editingItemDraft.top);
-    const bottom = parseMeasurement(editingItemDraft.bottom);
+    const left = parseLengthInput(editingItemDraft.left, measurementSystem);
+    const right = parseLengthInput(editingItemDraft.right, measurementSystem);
+    const top = parseLengthInput(editingItemDraft.top, measurementSystem);
+    const bottom = parseLengthInput(editingItemDraft.bottom, measurementSystem);
     if (left === null || right === null || top === null || bottom === null) {
       showToast('Item overlay values must be valid fractions or decimals', 'error');
       return;
@@ -458,10 +660,10 @@ export function SettingsView() {
             throw new Error('Each item needs a name');
           }
 
-          const left = parseMeasurement(item.left);
-          const right = parseMeasurement(item.right);
-          const top = parseMeasurement(item.top);
-          const bottom = parseMeasurement(item.bottom);
+          const left = parseLengthInput(item.left, measurementSystem);
+          const right = parseLengthInput(item.right, measurementSystem);
+          const top = parseLengthInput(item.top, measurementSystem);
+          const bottom = parseLengthInput(item.bottom, measurementSystem);
           if (left === null || right === null || top === null || bottom === null) {
             throw new Error('Overlay values must be valid fractions or decimals');
           }
@@ -473,9 +675,28 @@ export function SettingsView() {
       };
 
       try {
+        const defaultLeft = parseLengthInput(category.default?.left ?? '', measurementSystem);
+        const defaultRight = parseLengthInput(category.default?.right ?? '', measurementSystem);
+        const defaultTop = parseLengthInput(category.default?.top ?? '', measurementSystem);
+        const defaultBottom = parseLengthInput(category.default?.bottom ?? '', measurementSystem);
+        if (
+          defaultLeft === null ||
+          defaultRight === null ||
+          defaultTop === null ||
+          defaultBottom === null
+        ) {
+          throw new Error('Each category needs valid default left/right/top/bottom values');
+        }
+
         payload.push({
           id: category.id,
           name: category.name.trim(),
+          default: {
+            left: defaultLeft,
+            right: defaultRight,
+            top: defaultTop,
+            bottom: defaultBottom,
+          },
           doorItems: mapItems(category.doorItems || []),
           drawerFrontItems: mapItems(category.drawerFrontItems || []),
         });
@@ -489,7 +710,8 @@ export function SettingsView() {
     try {
       const saved = await SaveOverlayCategories(payload);
       const safe = Array.isArray(saved) ? saved : [];
-      setOverlayCategories(safe.map((category) => normalizeCategory(category)));
+      setOverlayCategories(safe.map((category) => normalizeCategory(category, measurementSystem)));
+      onOverlayDefaultsSaved?.(safe);
       showToast('Overlay presets saved', 'success');
     } catch (error) {
       showToast('Failed to save overlay presets', 'error');
@@ -507,6 +729,83 @@ export function SettingsView() {
       showToast('Catalog exported', 'success');
     } catch (error) {
       showToast('Failed to export catalog', 'error');
+    }
+  };
+
+  const addWoodPreset = () => {
+    const value = newWoodPreset.trim();
+    if (!value) {
+      return;
+    }
+    if (woodPresets.some((entry) => entry.toLowerCase() === value.toLowerCase())) {
+      showToast('Wood preset already exists', 'error');
+      return;
+    }
+    setWoodPresets((prev) => [...prev, value]);
+    setNewWoodPreset('');
+  };
+
+  const updateWoodPreset = (index, value) => {
+    setWoodPresets((prev) => prev.map((entry, entryIndex) => (entryIndex === index ? value : entry)));
+  };
+
+  const removeWoodPreset = (index) => {
+    setWoodPresets((prev) => prev.filter((_, entryIndex) => entryIndex !== index));
+  };
+
+  const onWoodDragStart = (event, index) => {
+    setDraggedWoodIndex(index);
+    setDragOverWoodIndex(-1);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const onWoodDragOver = (event, index) => {
+    event.preventDefault();
+    if (draggedWoodIndex < 0 || draggedWoodIndex === index) {
+      return;
+    }
+    setDragOverWoodIndex(index);
+  };
+
+  const onWoodDrop = (event, index) => {
+    event.preventDefault();
+    const sourceText = event.dataTransfer.getData('text/plain');
+    const sourceIndex = Number.isFinite(Number(sourceText)) ? Number(sourceText) : draggedWoodIndex;
+    setDraggedWoodIndex(-1);
+    setDragOverWoodIndex(-1);
+
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex === index) {
+      return;
+    }
+
+    setWoodPresets((prev) => {
+      if (sourceIndex >= prev.length || index >= prev.length) {
+        return prev;
+      }
+
+      const next = [...prev];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(index, 0, moved);
+      return next;
+    });
+  };
+
+  const onWoodDragEnd = () => {
+    setDraggedWoodIndex(-1);
+    setDragOverWoodIndex(-1);
+  };
+
+  const saveWoodPresets = async () => {
+    setIsSavingWoodPresets(true);
+    try {
+      const saved = await UpdateSettings({ woodPresets });
+      setWoodPresets(Array.isArray(saved?.woodPresets) ? saved.woodPresets : []);
+      showToast('Wood presets saved', 'success');
+    } catch (error) {
+      showToast('Failed to save wood presets', 'error');
+    } finally {
+      setIsSavingWoodPresets(false);
     }
   };
 
@@ -565,7 +864,7 @@ export function SettingsView() {
       const parsed = JSON.parse(text);
       const categories = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.overlayCategories) ? parsed.overlayCategories : []);
       const saved = await ImportOverlayData({ version: 1, overlayCategories: categories, exportedAt: parsed?.exportedAt || undefined });
-      setOverlayCategories((saved || []).map((category) => normalizeCategory(category)));
+      setOverlayCategories((saved || []).map((category) => normalizeCategory(category, measurementSystem)));
       showToast('Overlay presets imported', 'success');
     } catch (error) {
       showToast('Failed to import overlay presets JSON', 'error');
@@ -589,6 +888,41 @@ export function SettingsView() {
     }
   };
 
+  const handleExportWoodPresets = async () => {
+    try {
+      const filePath = await ExportWoodPresetsDataToFile();
+      if (!filePath) {
+        return;
+      }
+      showToast('Wood presets exported', 'success');
+    } catch (error) {
+      showToast('Failed to export wood presets', 'error');
+    }
+  };
+
+  const handleImportWoodPresetsFile = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    setIsImportingWoodPresets(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const presets = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.woodPresets) ? parsed.woodPresets : []);
+      const saved = await ImportWoodPresetsData({ version: 1, woodPresets: presets, exportedAt: parsed?.exportedAt || undefined });
+      setWoodPresets(Array.isArray(saved) ? saved : []);
+      showToast('Wood presets imported', 'success');
+    } catch (error) {
+      showToast('Failed to import wood presets JSON', 'error');
+    } finally {
+      setIsImportingWoodPresets(false);
+      if (woodPresetsImportRef.current) {
+        woodPresetsImportRef.current.value = '';
+      }
+    }
+  };
+
   const handleImportAllDataFile = async (file) => {
     if (!file) {
       return;
@@ -600,7 +934,7 @@ export function SettingsView() {
       const parsed = JSON.parse(text);
       await ImportAllData(parsed);
       const categories = await GetOverlayCategories();
-      setOverlayCategories((categories || []).map((category) => normalizeCategory(category)));
+      setOverlayCategories((categories || []).map((category) => normalizeCategory(category, measurementSystem)));
       showToast('Full backup imported', 'success');
     } catch (error) {
       showToast('Failed to import full backup JSON', 'error');
@@ -634,6 +968,10 @@ export function SettingsView() {
     }
     if (kind === 'backup') {
       await handleImportAllDataFile(file);
+      return;
+    }
+    if (kind === 'wood') {
+      await handleImportWoodPresetsFile(file);
     }
   };
 
@@ -642,7 +980,7 @@ export function SettingsView() {
     try {
       await WipeAllData();
       const categories = await GetOverlayCategories();
-      setOverlayCategories((categories || []).map((category) => normalizeCategory(category)));
+      setOverlayCategories((categories || []).map((category) => normalizeCategory(category, measurementSystem)));
       setWipeConfirmText('');
       setIsWipeModalOpen(false);
       showToast('All app data wiped', 'success');
@@ -684,12 +1022,12 @@ export function SettingsView() {
                   )}
                 >
                   {isEditingItem ? (
-                    <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_auto_auto]">
+                    <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_auto_auto]">
                       <Input label="Item" value={editingItemDraft?.name || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), name: event.target.value }))} placeholder="Base" />
-                      <Input label="Left" value={editingItemDraft?.left || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), left: event.target.value }))} placeholder="1/2" />
-                      <Input label="Right" value={editingItemDraft?.right || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), right: event.target.value }))} placeholder="1/2" />
-                      <Input label="Top" value={editingItemDraft?.top || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), top: event.target.value }))} placeholder="1/2" />
-                      <Input label="Bottom" value={editingItemDraft?.bottom || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), bottom: event.target.value }))} placeholder="1/2" />
+                      <Input label={`Left (${unitLabel})`} value={editingItemDraft?.left || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), left: event.target.value }))} placeholder={measurementPlaceholder} />
+                      <Input label={`Right (${unitLabel})`} value={editingItemDraft?.right || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), right: event.target.value }))} placeholder={measurementPlaceholder} />
+                      <Input label={`Top (${unitLabel})`} value={editingItemDraft?.top || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), top: event.target.value }))} placeholder={measurementPlaceholder} />
+                      <Input label={`Bottom (${unitLabel})`} value={editingItemDraft?.bottom || ''} onChange={(event) => setEditingItemDraft((prev) => ({ ...(prev || item), bottom: event.target.value }))} placeholder={measurementPlaceholder} />
                       <div className="flex items-end">
                         <Button variant="ghost" size="sm" onClick={() => saveEditItem(category.id, group, item.id)}>
                           <Check size={14} className="text-emerald-500" />
@@ -732,12 +1070,12 @@ export function SettingsView() {
 
           {showAddingRow ? (
             <div className="rounded bg-zinc-50 p-2 dark:bg-zinc-800/50">
-              <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_0.8fr_auto_auto]">
+              <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_auto_auto]">
                 <Input label="Item" value={newItemDraft.name} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Upper" />
-                <Input label="Left" value={newItemDraft.left} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, left: event.target.value }))} placeholder="1/2" />
-                <Input label="Right" value={newItemDraft.right} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, right: event.target.value }))} placeholder="1/2" />
-                <Input label="Top" value={newItemDraft.top} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, top: event.target.value }))} placeholder="1/2" />
-                <Input label="Bottom" value={newItemDraft.bottom} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, bottom: event.target.value }))} placeholder="1/2" />
+                <Input label={`Left (${unitLabel})`} value={newItemDraft.left} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, left: event.target.value }))} placeholder={measurementPlaceholder} />
+                <Input label={`Right (${unitLabel})`} value={newItemDraft.right} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, right: event.target.value }))} placeholder={measurementPlaceholder} />
+                <Input label={`Top (${unitLabel})`} value={newItemDraft.top} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, top: event.target.value }))} placeholder={measurementPlaceholder} />
+                <Input label={`Bottom (${unitLabel})`} value={newItemDraft.bottom} onChange={(event) => setNewItemDraft((prev) => ({ ...prev, bottom: event.target.value }))} placeholder={measurementPlaceholder} />
                 <div className="flex items-end">
                   <Button variant="ghost" size="sm" onClick={() => commitAddItem(category.id, group)}>
                     <Check size={14} className="text-emerald-500" />
@@ -760,6 +1098,85 @@ export function SettingsView() {
       </div>
     );
   };
+
+  const renderCategoryDefault = (category) => (
+    <div className="rounded-md border border-zinc-200 bg-white/80 p-2 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Default</p>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">Job baseline</span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <Input
+          id={`overlay-default-left-${category.id}`}
+          label={`Left (${unitLabel})`}
+          value={category.default?.left || ''}
+          onChange={(event) =>
+            updateCategory(category.id, (entry) => ({
+              ...entry,
+              default: {
+                left: event.target.value,
+                right: entry.default?.right || '',
+                top: entry.default?.top || '',
+                bottom: entry.default?.bottom || '',
+              },
+            }))
+          }
+          placeholder={measurementPlaceholder}
+        />
+        <Input
+          id={`overlay-default-right-${category.id}`}
+          label={`Right (${unitLabel})`}
+          value={category.default?.right || ''}
+          onChange={(event) =>
+            updateCategory(category.id, (entry) => ({
+              ...entry,
+              default: {
+                left: entry.default?.left || '',
+                right: event.target.value,
+                top: entry.default?.top || '',
+                bottom: entry.default?.bottom || '',
+              },
+            }))
+          }
+          placeholder={measurementPlaceholder}
+        />
+        <Input
+          id={`overlay-default-top-${category.id}`}
+          label={`Top (${unitLabel})`}
+          value={category.default?.top || ''}
+          onChange={(event) =>
+            updateCategory(category.id, (entry) => ({
+              ...entry,
+              default: {
+                left: entry.default?.left || '',
+                right: entry.default?.right || '',
+                top: event.target.value,
+                bottom: entry.default?.bottom || '',
+              },
+            }))
+          }
+          placeholder={measurementPlaceholder}
+        />
+        <Input
+          id={`overlay-default-bottom-${category.id}`}
+          label={`Bottom (${unitLabel})`}
+          value={category.default?.bottom || ''}
+          onChange={(event) =>
+            updateCategory(category.id, (entry) => ({
+              ...entry,
+              default: {
+                left: entry.default?.left || '',
+                right: entry.default?.right || '',
+                top: entry.default?.top || '',
+                bottom: event.target.value,
+              },
+            }))
+          }
+          placeholder={measurementPlaceholder}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <section className="space-y-4">
@@ -798,6 +1215,19 @@ export function SettingsView() {
             </button>
             <button
               type="button"
+              onClick={() => setActiveSection('wood-presets')}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+                activeSection === 'wood-presets'
+                  ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800',
+              )}
+            >
+              <List size={16} />
+              Wood Presets
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveSection('data')}
               className={cn(
                 'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
@@ -814,7 +1244,7 @@ export function SettingsView() {
 
         <Card>
           <CardHeader>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'data' ? 'Data Management' : 'Overlay Presets'}</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'data' ? 'Data Management' : activeSection === 'wood-presets' ? 'Wood Presets' : 'Overlay Presets'}</h3>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeSection === 'theme' ? (
@@ -859,12 +1289,101 @@ export function SettingsView() {
                   })}
                 </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">Theme previews apply instantly and save automatically.</p>
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Measurements</h4>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Choose how dimensions are shown in job tables and cut lists.</p>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                    Switching units changes how typed form values are interpreted and may slightly change rounded displays.
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <Button
+                      variant={measurementSystem === 'imperial' ? 'primary' : 'secondary'}
+                      onClick={() => requestMeasurementSystemChange('imperial')}
+                    >
+                      Imperial (in)
+                    </Button>
+                    <Button
+                      variant={measurementSystem === 'metric' ? 'primary' : 'secondary'}
+                      onClick={() => requestMeasurementSystemChange('metric')}
+                    >
+                      Metric (mm)
+                    </Button>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <Button variant="secondary" size="sm" onClick={() => onOpenWelcome?.()}>
+                      Open Getting Started
+                    </Button>
+                  </div>
+                </div>
               </>
+            ) : activeSection === 'wood-presets' ? (
+              <div className="space-y-4">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">Manage wood choices available when creating jobs.</p>
+
+                <div className="space-y-2">
+                  {woodPresets.length === 0 ? (
+                    <div className="rounded-lg bg-zinc-100 p-4 text-sm text-zinc-500 dark:bg-zinc-800/40 dark:text-zinc-400">
+                      No wood presets yet. Add your first wood option below.
+                    </div>
+                  ) : null}
+                  {woodPresets.map((preset, index) => (
+                    <div
+                      key={`${preset}-${index}`}
+                      onDragOver={(event) => onWoodDragOver(event, index)}
+                      onDrop={(event) => onWoodDrop(event, index)}
+                      className={cn(
+                        'flex items-center gap-2 rounded-md p-1',
+                        dragOverWoodIndex === index ? 'ring-2 ring-zinc-400 dark:ring-zinc-500' : '',
+                        draggedWoodIndex === index ? 'opacity-50' : '',
+                      )}
+                    >
+                      <span
+                        draggable
+                        onDragStart={(event) => onWoodDragStart(event, index)}
+                        onDragEnd={onWoodDragEnd}
+                        className="cursor-grab rounded p-1 text-zinc-500 dark:text-zinc-400"
+                        title="Drag to reorder"
+                      >
+                        <GripVertical size={16} />
+                      </span>
+                      <Input
+                        label=""
+                        value={preset}
+                        onChange={(event) => updateWoodPreset(index, event.target.value)}
+                        placeholder="Wood name"
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => removeWoodPreset(index)} title="Remove wood preset">
+                        <Trash2 size={14} className="text-rose-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Input
+                    label=""
+                    value={newWoodPreset}
+                    onChange={(event) => setNewWoodPreset(event.target.value)}
+                    placeholder="Add wood preset"
+                  />
+                  <Button variant="secondary" size="sm" onClick={addWoodPreset}>
+                    <Plus size={14} className="mr-1" />
+                    Add
+                  </Button>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={() => void saveWoodPresets()} disabled={isSavingWoodPresets}>
+                    <Save size={16} className="mr-2" />
+                    {isSavingWoodPresets ? 'Saving...' : 'Save Wood Presets'}
+                  </Button>
+                </div>
+              </div>
             ) : activeSection === 'data' ? (
               <div className="space-y-4">
                 <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
                   <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Catalog JSON</h4>
-                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import catalog styles (door style families and variants).</p>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import catalog styles (door style families and frames).</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button variant="secondary" onClick={() => void handleExportCatalog()}>
                       <Download size={16} className="mr-2" />
@@ -908,6 +1427,32 @@ export function SettingsView() {
                       onChange={(event) => {
                         const file = event.target.files?.[0];
                         startImportConfirmation('overlay', file || null);
+                        event.target.value = '';
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Wood Presets JSON</h4>
+                  <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Export or import saved wood preset options.</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => void handleExportWoodPresets()}>
+                      <Download size={16} className="mr-2" />
+                      Export JSON
+                    </Button>
+                    <Button variant="secondary" onClick={() => woodPresetsImportRef.current?.click()} disabled={isImportingWoodPresets}>
+                      <Upload size={16} className="mr-2" />
+                      {isImportingWoodPresets ? 'Importing...' : 'Import JSON'}
+                    </Button>
+                    <input
+                      ref={woodPresetsImportRef}
+                      type="file"
+                      accept="application/json,.json"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        startImportConfirmation('wood', file || null);
                         event.target.value = '';
                       }}
                     />
@@ -961,7 +1506,7 @@ export function SettingsView() {
             ) : (
               <>
                 <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">Create overlay preset categories. Each category contains a Doors list and a Drawer Fronts list.</p>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">Create overlay preset categories. Each category has a Default section used for job-level overlay snapshots, plus Doors and Drawer Fronts preset lists.</p>
                   <Button variant="secondary" size="sm" onClick={addCategory}>
                     <Plus size={14} className="mr-1" />
                     Add Category
@@ -1052,6 +1597,7 @@ export function SettingsView() {
 
                       {!collapsedCategoryIds.includes(category.id) ? (
                         <div className="space-y-3 pt-2">
+                          {renderCategoryDefault(category)}
                           {renderItemList(category, 'doorItems', 'Doors')}
                           {renderItemList(category, 'drawerFrontItems', 'Drawer Fronts')}
                         </div>
@@ -1085,9 +1631,41 @@ export function SettingsView() {
       />
 
       <Modal
+        isOpen={isMeasurementConfirmOpen}
+        onClose={cancelMeasurementSystemChange}
+        title={measurementConfirmed ? 'Change Measurement System' : 'Set Measurement System'}
+      >
+        <div className="space-y-4">
+          <p className="text-zinc-700 dark:text-zinc-300">
+            {measurementConfirmed
+              ? `Switch to ${pendingMeasurementSystem === 'metric' ? 'Metric (mm)' : 'Imperial (in)'}?`
+              : `Use ${pendingMeasurementSystem === 'metric' ? 'Metric (mm)' : 'Imperial (in)'} as your measurement system?`}
+          </p>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            {measurementConfirmed
+              ? 'This changes how new values are interpreted in forms. Finish and save current edits before switching.'
+              : 'This sets how values are interpreted in forms across the app.'}
+          </p>
+          {measurementConfirmed ? (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Metric display rounds to whole millimeters, so toggling back and forth can slightly change shown values.
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={cancelMeasurementSystemChange} disabled={isSavingMeasurement}>
+              Cancel
+            </Button>
+            <Button onClick={() => void confirmMeasurementSystemChange()} disabled={isSavingMeasurement}>
+              {isSavingMeasurement ? (measurementConfirmed ? 'Switching...' : 'Saving...') : (measurementConfirmed ? 'Switch Units' : 'Set Units')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={isImportConfirmOpen}
         onClose={() => {
-          if (!isImportingCatalog && !isImportingOverlay && !isImportingBackup) {
+          if (!isImportingCatalog && !isImportingOverlay && !isImportingWoodPresets && !isImportingBackup) {
             setIsImportConfirmOpen(false);
             setPendingImportKind('');
             setPendingImportFile(null);
@@ -1101,6 +1679,8 @@ export function SettingsView() {
               ? 'Importing catalog JSON will replace all existing catalog styles.'
               : pendingImportKind === 'overlay'
                 ? 'Importing overlay presets JSON will replace all existing overlay presets.'
+                : pendingImportKind === 'wood'
+                  ? 'Importing wood presets JSON will replace all existing wood presets.'
                 : 'Importing full backup will replace all current app data.'}
           </p>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">This action cannot be undone.</p>
@@ -1112,16 +1692,16 @@ export function SettingsView() {
                 setPendingImportKind('');
                 setPendingImportFile(null);
               }}
-              disabled={isImportingCatalog || isImportingOverlay || isImportingBackup}
+              disabled={isImportingCatalog || isImportingOverlay || isImportingWoodPresets || isImportingBackup}
             >
               Cancel
             </Button>
             <Button
               variant="danger"
               onClick={() => void handleConfirmImport()}
-              disabled={isImportingCatalog || isImportingOverlay || isImportingBackup}
+              disabled={isImportingCatalog || isImportingOverlay || isImportingWoodPresets || isImportingBackup}
             >
-              {isImportingCatalog || isImportingOverlay || isImportingBackup ? 'Importing...' : 'Import and Replace'}
+              {isImportingCatalog || isImportingOverlay || isImportingWoodPresets || isImportingBackup ? 'Importing...' : 'Import and Replace'}
             </Button>
           </div>
         </div>

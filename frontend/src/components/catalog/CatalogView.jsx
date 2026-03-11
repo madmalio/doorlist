@@ -8,7 +8,8 @@ import { ConfirmModal } from '../ui/ConfirmModal';
 import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
-import { formatMeasurement } from '../../lib/measurements';
+import { useMeasurement } from '../ui/MeasurementProvider';
+import { formatLengthDisplay } from '../../lib/units';
 import { getStyleFamily, getStyleUse, getStyleVariant, getStyleVariantLabel, groupStylesByFamily } from '../../lib/styleCatalog';
 
 const collapsedFamiliesStorageKey = 'doorlist:catalog:collapsed-families';
@@ -31,29 +32,21 @@ function readCollapsedFamilies() {
   }
 }
 
-function getStyleUseLabel(style) {
-  const use = getStyleUse(style);
-  if (use === 'door') {
-    return 'Door';
-  }
-  if (use === 'drawer-front') {
-    return 'Drawer Front';
-  }
-  return 'Both';
-}
-
 export function CatalogView() {
+  const { measurementSystem } = useMeasurement();
   const [styles, setStyles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedStyles, setHasLoadedStyles] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStyle, setEditingStyle] = useState(null);
   const [createFamily, setCreateFamily] = useState('');
+  const [createStyleUse, setCreateStyleUse] = useState('door');
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [styleToDelete, setStyleToDelete] = useState(null);
   const [draggedStyleID, setDraggedStyleID] = useState('');
   const [dragOverStyleID, setDragOverStyleID] = useState('');
   const [draggedFamily, setDraggedFamily] = useState('');
+  const [draggedUse, setDraggedUse] = useState('');
   const [collapsedFamilies, setCollapsedFamilies] = useState(() => readCollapsedFamilies());
   const [search, setSearch] = useState('');
   const { showToast } = useToast();
@@ -136,12 +129,14 @@ export function CatalogView() {
   const closeModal = () => {
     setEditingStyle(null);
     setCreateFamily('');
+    setCreateStyleUse('door');
     setIsModalOpen(false);
   };
 
-  const openCreate = (family = '') => {
+  const openCreate = (family = '', styleUse = 'door') => {
     setEditingStyle(null);
     setCreateFamily(family);
+    setCreateStyleUse(styleUse);
     setIsModalOpen(true);
   };
 
@@ -206,6 +201,7 @@ export function CatalogView() {
     const styleID = style.id;
     setDraggedStyleID(styleID);
     setDraggedFamily(getStyleFamily(style));
+    setDraggedUse(getStyleUse(style));
     setDragOverStyleID('');
     event.dataTransfer.effectAllowed = 'move';
     event.dataTransfer.setData('text/plain', styleID);
@@ -214,6 +210,9 @@ export function CatalogView() {
   const onRowDragOver = (event, style) => {
     const styleID = style.id;
     if (draggedFamily && draggedFamily !== getStyleFamily(style)) {
+      return;
+    }
+    if (draggedUse && draggedUse !== getStyleUse(style)) {
       return;
     }
     event.preventDefault();
@@ -229,12 +228,13 @@ export function CatalogView() {
     setDragOverStyleID('');
     setDraggedStyleID('');
     setDraggedFamily('');
+    setDraggedUse('');
     if (!sourceID || sourceID === styleID) {
       return;
     }
 
     const sourceStyle = styles.find((entry) => entry.id === sourceID);
-    if (!sourceStyle || getStyleFamily(sourceStyle) !== getStyleFamily(style)) {
+    if (!sourceStyle || getStyleFamily(sourceStyle) !== getStyleFamily(style) || getStyleUse(sourceStyle) !== getStyleUse(style)) {
       return;
     }
 
@@ -251,6 +251,7 @@ export function CatalogView() {
     setDragOverStyleID('');
     setDraggedStyleID('');
     setDraggedFamily('');
+    setDraggedUse('');
   };
 
   const toggleFamilyCollapsed = (family) => {
@@ -274,7 +275,7 @@ export function CatalogView() {
       <Input
         value={search}
         onChange={(event) => setSearch(event.target.value)}
-        placeholder="Search styles by family or variant"
+        placeholder="Search styles by family or frame"
       />
 
       {styles.length === 0 ? (
@@ -308,78 +309,114 @@ export function CatalogView() {
                       {familyType}
                     </span>
                   </button>
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{group.styles.length} variants</span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">{group.styles.length} frames</span>
                 </div>
               </CardHeader>
               {isCollapsed ? null : (
                 <div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
-                          <th className="w-10 px-2 py-3" />
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Variant</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Applies To</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Stile</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Rail</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Tenon</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Panel Thickness</th>
-                          <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Panel Gap</th>
-                          <th className="px-4 py-3 text-right text-sm font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.styles.map((style) => {
-                          const isLocked = style.id === 'default-slab-style';
-                          return (
-                            <tr
-                              key={style.id}
-                              draggable={!isLocked}
-                              onDragStart={(event) => onRowDragStart(event, style)}
-                              onDragOver={(event) => onRowDragOver(event, style)}
-                              onDrop={(event) => void onRowDrop(event, style)}
-                              onDragEnd={onRowDragEnd}
-                              className={`border-b border-zinc-200 dark:border-zinc-800 ${draggedStyleID === style.id ? 'opacity-50' : ''} ${dragOverStyleID === style.id ? 'bg-zinc-200 dark:bg-zinc-700' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
-                            >
-                              <td className="px-2 py-3 text-zinc-400 dark:text-zinc-500">
-                                {isLocked ? null : (
-                                  <div className="flex items-center justify-center" title="Drag to reorder within family">
-                                    <GripVertical size={14} />
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                <span>{getStyleVariantLabel(style)}</span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{getStyleUseLabel(style)}</td>
-                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.stileWidth)}</td>
-                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.railWidth)}</td>
-                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.tenonLength)}</td>
-                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{formatMeasurement(style.panelThickness)}</td>
-                              <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatMeasurement(style.panelGap)}</td>
-                              <td className="px-4 py-3">
-                                {isLocked ? null : (
-                                  <div className="flex justify-end gap-2">
-                                    <Button variant="ghost" size="sm" onClick={() => openEdit(style)} title="Edit style">
-                                      <Pencil size={14} className="text-zinc-500 dark:text-zinc-400" />
-                                    </Button>
-                                    <Button variant="ghost" size="sm" onClick={() => openDeleteModal(style)} title="Delete style">
-                                      <Trash2 size={14} className="text-rose-400" />
-                                    </Button>
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="p-2">
-                    <Button variant="ghost" size="sm" onClick={() => openCreate(group.family)} className="w-full">
-                      <Plus size={14} className="mr-1" />
-                      Add Variant
-                    </Button>
+                  <div className="space-y-3 p-2">
+                    {[
+                      { key: 'door', title: 'Doors' },
+                      ...(familyType === 'Slab'
+                        ? []
+                        : [
+                            { key: 'drawer-front-top', title: 'Top' },
+                            { key: 'drawer-front-middle', title: 'Middle' },
+                            { key: 'drawer-front-bottom', title: 'Bottom' },
+                          ]),
+                    ].map((bucket) => {
+                      const bucketStyles = group.styles.filter((style) => {
+                        if (style.isSlab) {
+                          return bucket.key === 'door';
+                        }
+                        const use = getStyleUse(style);
+                        if (bucket.key === 'door') {
+                          return use === 'door';
+                        }
+                        return use === bucket.key;
+                      });
+
+                      return (
+                        <div key={bucket.key} className="rounded-md border border-zinc-200 bg-white/70 dark:border-zinc-700 dark:bg-zinc-900/50">
+                          <div className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{bucket.title}</p>
+                            <span className="text-xs text-zinc-500 dark:text-zinc-400">{bucketStyles.length} styles</span>
+                          </div>
+                          {bucketStyles.length === 0 ? (
+                            <div className="px-3 py-3 text-sm text-zinc-500 dark:text-zinc-400">No styles yet.</div>
+                          ) : (
+                            <div className="overflow-x-auto">
+                              <table className="w-full">
+                                <thead>
+                                  <tr className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800">
+                                    <th className="w-10 px-2 py-3" />
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Frame</th>
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Stile</th>
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Rail</th>
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Tenon</th>
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Panel Thickness</th>
+                                    <th className="px-4 py-3 text-left text-sm font-medium text-zinc-500 dark:text-zinc-400">Panel Gap</th>
+                                    <th className="px-4 py-3 text-right text-sm font-medium text-zinc-500 dark:text-zinc-400">Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {bucketStyles.map((style) => {
+                                    const isLocked = style.id === 'default-slab-style';
+                                    return (
+                                      <tr
+                                        key={style.id}
+                                        draggable={!isLocked}
+                                        onDragStart={(event) => onRowDragStart(event, style)}
+                                        onDragOver={(event) => onRowDragOver(event, style)}
+                                        onDrop={(event) => void onRowDrop(event, style)}
+                                        onDragEnd={onRowDragEnd}
+                                        className={`border-b border-zinc-200 dark:border-zinc-800 ${draggedStyleID === style.id ? 'opacity-50' : ''} ${dragOverStyleID === style.id ? 'bg-zinc-200 dark:bg-zinc-700' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+                                      >
+                                        <td className="px-2 py-3 text-zinc-400 dark:text-zinc-500">
+                                          {isLocked ? null : (
+                                            <div className="flex items-center justify-center" title="Drag to reorder within family">
+                                              <GripVertical size={14} />
+                                            </div>
+                                          )}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                                          <span>{getStyleVariantLabel(style)}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatLengthDisplay(style.stileWidth, measurementSystem)}</td>
+                                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatLengthDisplay(style.railWidth, measurementSystem)}</td>
+                                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatLengthDisplay(style.tenonLength, measurementSystem)}</td>
+                                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{formatLengthDisplay(style.panelThickness, measurementSystem)}</td>
+                                        <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">{style.isSlab ? '' : formatLengthDisplay(style.panelGap, measurementSystem)}</td>
+                                        <td className="px-4 py-3">
+                                          {isLocked ? null : (
+                                            <div className="flex justify-end gap-2">
+                                              <Button variant="ghost" size="sm" onClick={() => openEdit(style)} title="Edit style">
+                                                <Pencil size={14} className="text-zinc-500 dark:text-zinc-400" />
+                                              </Button>
+                                              <Button variant="ghost" size="sm" onClick={() => openDeleteModal(style)} title="Delete style">
+                                                <Trash2 size={14} className="text-rose-400" />
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                          {familyType !== 'Slab' ? (
+                            <div className="p-2">
+                              <Button variant="ghost" size="sm" onClick={() => openCreate(group.family, bucket.key)} className="w-full">
+                                <Plus size={14} className="mr-1" />
+                                Add {bucket.title} Style
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -389,7 +426,7 @@ export function CatalogView() {
       )}
 
       <Modal isOpen={isModalOpen} onClose={closeModal} title={editingStyle ? 'Edit Door Style' : 'Create Door Style'}>
-        <CatalogForm style={editingStyle} initialFamily={createFamily} onSubmit={handleSubmit} onCancel={closeModal} />
+        <CatalogForm style={editingStyle} initialFamily={createFamily} initialStyleUse={createStyleUse} onSubmit={handleSubmit} onCancel={closeModal} />
       </Modal>
 
       <ConfirmModal

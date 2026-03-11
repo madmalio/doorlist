@@ -1,3 +1,5 @@
+import { formatLengthDisplay, normalizeMeasurementSystem } from "./units";
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -7,7 +9,7 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function getThicknessLabel(items) {
+function getThicknessLabel(items, measurementSystem) {
   if (!items.length) {
     return "";
   }
@@ -17,10 +19,10 @@ function getThicknessLabel(items) {
     return "";
   }
 
-  return values.join(", ");
+  return values.map((value) => formatLengthDisplay(value, measurementSystem)).join(", ");
 }
 
-function getFrameLinearFeetLabel(items) {
+function getFrameLengthLabel(items, measurementSystem) {
   if (!items.length) {
     return "";
   }
@@ -31,7 +33,12 @@ function getFrameLinearFeetLabel(items) {
     return sum + (length * qty) / 12;
   }, 0);
 
-  return totalFeet.toFixed(2);
+  if (measurementSystem === "metric") {
+    const totalMeters = totalFeet * 0.3048;
+    return `Total Length: ${totalMeters.toFixed(2)} m`;
+  }
+
+  return `Linear Feet: ${totalFeet.toFixed(2)}`;
 }
 
 function formatSlabUse(value) {
@@ -48,15 +55,33 @@ function formatSlabGrain(value) {
   return "MDF";
 }
 
+function formatDrawerFrontPosition(value) {
+  if (value === "middle") {
+    return "Middle";
+  }
+  if (value === "bottom") {
+    return "Bottom";
+  }
+  return "Top";
+}
+
 function getPartDisplay(item) {
   if (item.part !== "Slab") {
     return item.part;
   }
 
-  return `${formatSlabUse(item.slabUse)} - ${formatSlabGrain(item.slabGrain)}`;
+  const suffix = item.slabUse === "drawer-front" ? ` - ${formatDrawerFrontPosition(item.drawerFrontPosition)}` : "";
+  return `${formatSlabUse(item.slabUse)}${suffix}`;
 }
 
-function buildSections(items) {
+function getGrainDisplay(item) {
+  if (item.part !== "Slab") {
+    return "-";
+  }
+  return formatSlabGrain(item.slabGrain);
+}
+
+function buildSections(items, measurementSystem) {
   const frameItems = items.filter((item) => item.part === "Stile" || item.part === "Rail");
   const slabItems = items.filter((item) => item.part === "Slab");
   const panelItems = items.filter((item) => item.part === "Panel");
@@ -66,27 +91,27 @@ function buildSections(items) {
       id: "frame",
       title: "Stiles & Rails",
       items: frameItems,
-      thicknessLabel: getThicknessLabel(frameItems),
-      footerLabel: getFrameLinearFeetLabel(frameItems) ? `Linear Feet: ${getFrameLinearFeetLabel(frameItems)}` : "",
+      thicknessLabel: getThicknessLabel(frameItems, measurementSystem),
+      footerLabel: getFrameLengthLabel(frameItems, measurementSystem),
     },
     {
       id: "slab",
       title: "Slabs",
       items: slabItems,
-      thicknessLabel: getThicknessLabel(slabItems),
+      thicknessLabel: getThicknessLabel(slabItems, measurementSystem),
       footerLabel: "",
     },
     {
       id: "panel",
       title: "Panels",
       items: panelItems,
-      thicknessLabel: getThicknessLabel(panelItems),
+      thicknessLabel: getThicknessLabel(panelItems, measurementSystem),
       footerLabel: "",
     },
   ].filter((section) => section.items.length > 0);
 }
 
-function buildDocumentHtml({ customerName, jobName, sections, compactMode }) {
+function buildDocumentHtml({ customerName, jobName, woodChoice, frameName, sections, compactMode, measurementSystem }) {
   const sectionHtml = sections
     .map((section) => {
       const rows = section.items
@@ -94,9 +119,10 @@ function buildDocumentHtml({ customerName, jobName, sections, compactMode }) {
           (item) => `
             <tr>
               <td>${escapeHtml(getPartDisplay(item))}</td>
+              ${section.id === "slab" ? `<td>${escapeHtml(getGrainDisplay(item))}</td>` : ""}
               <td>${escapeHtml(item.qty)}</td>
-              <td>${escapeHtml(item.widthFormatted || "-")}</td>
-              <td>${escapeHtml(item.lengthFormatted || "-")}</td>
+              <td>${escapeHtml(formatLengthDisplay(item.widthFormatted || "-", measurementSystem))}</td>
+              <td>${escapeHtml(formatLengthDisplay(item.lengthFormatted || "-", measurementSystem))}</td>
             </tr>`,
         )
         .join("");
@@ -114,14 +140,14 @@ function buildDocumentHtml({ customerName, jobName, sections, compactMode }) {
           </div>
           <table>
             <colgroup>
-              <col style="width:20%" />
-              <col style="width:16%" />
-              <col style="width:26%" />
-              <col style="width:38%" />
+              ${section.id === "slab"
+                ? '<col style="width:24%" /><col style="width:16%" /><col style="width:12%" /><col style="width:22%" /><col style="width:26%" />'
+                : '<col style="width:20%" /><col style="width:16%" /><col style="width:26%" /><col style="width:38%" />'}
             </colgroup>
             <thead>
               <tr>
                 <th>Part</th>
+                ${section.id === "slab" ? "<th>Grain</th>" : ""}
                 <th>Qty</th>
                 <th>Width</th>
                 <th>Length</th>
@@ -228,7 +254,7 @@ function buildDocumentHtml({ customerName, jobName, sections, compactMode }) {
       <main class="root${compactMode ? " compact" : ""}">
         <header class="header">
           <h2 class="title">Cut List</h2>
-          <p class="subtitle">${escapeHtml(customerName || "")}${customerName || jobName ? " - " : ""}${escapeHtml(jobName || "")}</p>
+          <p class="subtitle">${escapeHtml(customerName || "")}${customerName || jobName ? " - " : ""}${escapeHtml(jobName || "")}${frameName ? ` - <strong>${escapeHtml(frameName)}</strong>` : ""}${woodChoice ? ` - <strong>${escapeHtml(woodChoice)}</strong>` : ""}</p>
         </header>
         ${sectionHtml}
       </main>
@@ -236,9 +262,10 @@ function buildDocumentHtml({ customerName, jobName, sections, compactMode }) {
   </html>`;
 }
 
-export async function printCutList({ customerName, jobName, items, openingCount }) {
+export async function printCutList({ customerName, jobName, woodChoice, frameName, items, openingCount, measurementSystem = "imperial" }) {
+  const normalizedSystem = normalizeMeasurementSystem(measurementSystem);
   const sourceItems = Array.isArray(items) ? items : [];
-  const sections = buildSections(sourceItems);
+  const sections = buildSections(sourceItems, normalizedSystem);
   if (sections.length === 0) {
     return false;
   }
@@ -274,7 +301,7 @@ export async function printCutList({ customerName, jobName, items, openingCount 
     }
 
     doc.open();
-    doc.write(buildDocumentHtml({ customerName, jobName, sections, compactMode }));
+    doc.write(buildDocumentHtml({ customerName, jobName, woodChoice, frameName, sections, compactMode, measurementSystem: normalizedSystem }));
     doc.close();
 
     await new Promise((resolve) => {

@@ -4,10 +4,28 @@ import { Sidebar } from './components/layout/Sidebar';
 import { GlobalCommandBar } from './components/layout/GlobalCommandBar';
 import { JobsView } from './components/jobs/JobsView';
 import { JobDetailView } from './components/jobs/JobDetailView';
+import { JobCutListView } from './components/jobs/JobCutListView';
+import { QuickDoorView } from './components/quickdoor/QuickDoorView';
 import { CatalogView } from './components/catalog/CatalogView';
 import { SettingsView } from './components/settings/SettingsView';
 import { DashboardView } from './components/dashboard/DashboardView';
 import { useTheme } from './components/ui/ThemeProvider';
+import { WelcomeModal } from './components/onboarding/WelcomeModal';
+import { GetJobsPage, GetOverlayCategories, GetSettings, UpdateSettings } from '../wailsjs/go/main/App';
+
+function hasValidOverlayDefaults(categories) {
+  if (!Array.isArray(categories) || categories.length === 0) {
+    return false;
+  }
+
+  return categories.some((category) => {
+    const defaults = category?.default;
+    if (!defaults) {
+      return false;
+    }
+    return [defaults.left, defaults.right, defaults.top, defaults.bottom].every((value) => Number.isFinite(Number(value)));
+  });
+}
 
 function App() {
   const { isReady: isThemeReady } = useTheme();
@@ -17,6 +35,35 @@ function App() {
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false);
   const [jobSearchRequest, setJobSearchRequest] = useState(null);
   const [selectedJobId, setSelectedJobId] = useState(null);
+  const [settingsInitialSection, setSettingsInitialSection] = useState('theme');
+  const [overlaySetupIntent, setOverlaySetupIntent] = useState(0);
+  const [createJobIntent, setCreateJobIntent] = useState(0);
+  const [isQuickDoorOpen, setIsQuickDoorOpen] = useState(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [hasJobs, setHasJobs] = useState(false);
+  const [measurementComplete, setMeasurementComplete] = useState(false);
+  const [overlayDefaultsComplete, setOverlayDefaultsComplete] = useState(false);
+
+  const handleMeasurementConfirmed = () => {
+    setMeasurementComplete(true);
+  };
+
+  const handleOverlayDefaultsSaved = (categories) => {
+    setOverlayDefaultsComplete(hasValidOverlayDefaults(categories || []));
+  };
+
+  const handleSetupCompleted = (createJob = false) => {
+    setMeasurementComplete(true);
+    setOverlayDefaultsComplete(true);
+    setOnboardingDismissed(true);
+    setIsWelcomeOpen(false);
+    if (createJob) {
+      setActiveView('jobs');
+      setSelectedJobId(null);
+      setCreateJobIntent((prev) => prev + 1);
+    }
+  };
 
   useEffect(() => {
     if (!isThemeReady || !showBootScreen) {
@@ -37,16 +84,107 @@ function App() {
     };
   }, [isThemeReady, showBootScreen]);
 
+  const refreshOnboardingState = async ({ syncVisibility = false } = {}) => {
+    const [settingsResult, categoriesResult, jobsResult] = await Promise.allSettled([
+      GetSettings(),
+      GetOverlayCategories(),
+      GetJobsPage({ page: 1, pageSize: 1, search: '' }),
+    ]);
+
+    const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+    const categories = categoriesResult.status === 'fulfilled' ? categoriesResult.value : [];
+    const jobsPage = jobsResult.status === 'fulfilled' ? jobsResult.value : null;
+
+    const dismissed = Boolean(settings?.onboardingDismissed);
+    const measurementReady = Boolean(settings?.measurementConfirmed);
+    const overlayReady = hasValidOverlayDefaults(categories || []);
+    const hasAnyJobs = Number(jobsPage?.total || 0) > 0;
+
+    setOnboardingDismissed(dismissed);
+    setMeasurementComplete(measurementReady);
+    setOverlayDefaultsComplete(overlayReady);
+    setHasJobs(hasAnyJobs);
+    if (syncVisibility) {
+      setIsWelcomeOpen(!dismissed && !hasAnyJobs && (!overlayReady || !measurementReady));
+    }
+  };
+
+  useEffect(() => {
+    void refreshOnboardingState({ syncVisibility: true });
+  }, []);
+
+  useEffect(() => {
+    if (activeView === 'settings' || activeView === 'jobs' || activeView === 'dashboard') {
+      void refreshOnboardingState({ syncVisibility: false });
+    }
+  }, [activeView]);
+
   const handleViewChange = (view) => {
+    if (view === 'quick-door') {
+      setIsQuickDoorOpen(true);
+      return;
+    }
     setActiveView(view);
-    if (view !== 'job-detail') {
+    if (view !== 'job-detail' && view !== 'job-cutlist') {
       setSelectedJobId(null);
     }
+    if (view !== 'settings') {
+      setSettingsInitialSection('theme');
+    }
+  };
+
+  const handleOpenOverlayPresets = () => {
+    setIsWelcomeOpen(false);
+    setSettingsInitialSection('overlay-presets');
+    setOverlaySetupIntent((prev) => prev + 1);
+    setActiveView('settings');
+    setSelectedJobId(null);
+  };
+
+  const handleDismissWelcome = async () => {
+    try {
+      await UpdateSettings({ onboardingDismissed: true });
+      setOnboardingDismissed(true);
+    } catch {
+      // Keep modal closable even if persistence fails.
+    }
+    setIsWelcomeOpen(false);
+  };
+
+  const handleOpenWelcome = async () => {
+    try {
+      if (onboardingDismissed) {
+        await UpdateSettings({ onboardingDismissed: false });
+        setOnboardingDismissed(false);
+      }
+    } catch {
+      // Continue opening modal even if persistence fails.
+    }
+    await refreshOnboardingState({ syncVisibility: false });
+    setIsWelcomeOpen(true);
   };
 
   const renderView = () => {
     if (activeView === 'job-detail' && selectedJobId) {
-      return <JobDetailView jobId={selectedJobId} onBack={() => handleViewChange('jobs')} />;
+      return (
+        <JobDetailView
+          jobId={selectedJobId}
+          onBack={() => handleViewChange('jobs')}
+          onOpenCutList={(targetJobId) => {
+            setSelectedJobId(targetJobId);
+            setActiveView('job-cutlist');
+          }}
+        />
+      );
+    }
+
+    if (activeView === 'job-cutlist' && selectedJobId) {
+      return (
+        <JobCutListView
+          jobId={selectedJobId}
+          onBack={() => setActiveView('job-detail')}
+        />
+      );
     }
 
     if (activeView === 'jobs') {
@@ -54,6 +192,8 @@ function App() {
         <JobsView
           searchRequest={jobSearchRequest}
           onSearchRequestHandled={() => setJobSearchRequest(null)}
+          openCreateIntent={createJobIntent}
+          onOpenOverlayPresets={handleOpenOverlayPresets}
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
             setActiveView('job-detail');
@@ -72,9 +212,16 @@ function App() {
         />
       );
     }
-
     if (activeView === 'settings') {
-      return <SettingsView />;
+      return (
+        <SettingsView
+          initialSection={settingsInitialSection}
+          overlaySetupIntent={overlaySetupIntent}
+          onOpenWelcome={handleOpenWelcome}
+          onMeasurementConfirmed={handleMeasurementConfirmed}
+          onOverlayDefaultsSaved={handleOverlayDefaultsSaved}
+        />
+      );
     }
 
     if (activeView === 'catalog') {
@@ -108,14 +255,14 @@ function App() {
     ) : (
       <Layout>
         <Sidebar
-          activeView={activeView === 'job-detail' ? 'jobs' : activeView}
+          activeView={activeView === 'job-detail' || activeView === 'job-cutlist' ? 'jobs' : activeView}
           onViewChange={handleViewChange}
           onOpenSearch={() => setIsCommandBarOpen(true)}
         />
         <GlobalCommandBar
           isOpen={isCommandBarOpen}
           onOpenChange={setIsCommandBarOpen}
-          activeView={activeView === 'job-detail' ? 'jobs' : activeView}
+          activeView={activeView === 'job-detail' || activeView === 'job-cutlist' ? 'jobs' : activeView}
           onNavigate={handleViewChange}
           onOpenResult={(result) => {
             if (result.type === 'job') {
@@ -125,6 +272,15 @@ function App() {
           }}
         />
         <main className="flex-1 overflow-auto p-6">{renderView()}</main>
+        <QuickDoorView isOpen={isQuickDoorOpen} onClose={() => setIsQuickDoorOpen(false)} />
+        <WelcomeModal
+          isOpen={isWelcomeOpen}
+          onClose={() => void handleDismissWelcome()}
+          onDismiss={() => void handleDismissWelcome()}
+          onSetupCompleted={handleSetupCompleted}
+          onMeasurementConfirmed={handleMeasurementConfirmed}
+          onOverlayDefaultsSaved={handleOverlayDefaultsSaved}
+        />
       </Layout>
     )
   );

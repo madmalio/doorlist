@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, Library, Search, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FolderOpen, LayoutDashboard, Library, Search, Settings, WandSparkles } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+  { id: 'quick-door', label: 'Quick Door', icon: <WandSparkles size={20} /> },
   { id: 'jobs', label: 'Jobs', icon: <FolderOpen size={20} /> },
   { id: 'catalog', label: 'Catalog', icon: <Library size={20} /> },
 ];

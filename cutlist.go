@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 )
 
 const frameThickness = 0.75
@@ -21,12 +22,40 @@ type CutListItem struct {
 	Label              string  `json:"label"`
 	SlabUse            string  `json:"slabUse,omitempty"`
 	SlabGrain          string  `json:"slabGrain,omitempty"`
+	DrawerFrontPos     string  `json:"drawerFrontPosition,omitempty"`
 }
 
 type CutListResponse struct {
 	JobID   string        `json:"jobId"`
 	JobName string        `json:"jobName"`
 	Items   []CutListItem `json:"items"`
+}
+
+type QuickDoorCutListRequest struct {
+	Name                string  `json:"name"`
+	Qty                 int     `json:"qty"`
+	OpWidth             float64 `json:"opWidth"`
+	OpHeight            float64 `json:"opHeight"`
+	StyleID             string  `json:"styleId"`
+	DoorType            string  `json:"doorType"`
+	ButtGap             float64 `json:"buttGap"`
+	OverlayType         string  `json:"overlayType"`
+	DrawerFrontPosition string  `json:"drawerFrontPosition"`
+	PanelLayout         string  `json:"panelLayout"`
+	SlabGrain           string  `json:"slabGrain"`
+	UseCustomOverlay    bool    `json:"useCustomOverlay"`
+	OverlayLeft         float64 `json:"overlayLeft"`
+	OverlayRight        float64 `json:"overlayRight"`
+	OverlayTop          float64 `json:"overlayTop"`
+	OverlayBottom       float64 `json:"overlayBottom"`
+}
+
+type QuickDoorCutListResponse struct {
+	Name           string        `json:"name"`
+	FinishedWidth  float64       `json:"finishedWidth"`
+	FinishedHeight float64       `json:"finishedHeight"`
+	LeafWidth      float64       `json:"leafWidth,omitempty"`
+	Items          []CutListItem `json:"items"`
 }
 
 func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
@@ -60,6 +89,103 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 		return CutListResponse{}, errors.New("job not found")
 	}
 
+	items, err := buildCutListItems(*job, styleByID)
+	if err != nil {
+		return CutListResponse{}, err
+	}
+
+	return CutListResponse{
+		JobID:   job.ID,
+		JobName: job.Name,
+		Items:   items,
+	}, nil
+}
+
+func (a *App) GenerateQuickDoorCutList(req QuickDoorCutListRequest) (QuickDoorCutListResponse, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	styles, err := a.loadDoorStylesUnsafe()
+	if err != nil {
+		return QuickDoorCutListResponse{}, err
+	}
+
+	styleByID := make(map[string]DoorStyle, len(styles))
+	for _, style := range styles {
+		styleByID[style.ID] = style
+	}
+
+	if _, exists := styleByID[req.StyleID]; !exists {
+		return QuickDoorCutListResponse{}, errors.New("door style not found")
+	}
+
+	qty := req.Qty
+	if qty <= 0 {
+		qty = 1
+	}
+
+	job := Job{
+		ID:               "quick-door",
+		Name:             strings.TrimSpace(req.Name),
+		DoorType:         normalizeDoorType(req.DoorType),
+		ButtGap:          req.ButtGap,
+		UseCustomOverlay: req.UseCustomOverlay,
+		OverlayLeft:      req.OverlayLeft,
+		OverlayRight:     req.OverlayRight,
+		OverlayTop:       req.OverlayTop,
+		OverlayBottom:    req.OverlayBottom,
+		DefaultOverlay:   req.OverlayLeft,
+		Doors: []DoorEntry{
+			{
+				ID:                   "quick-door-entry",
+				Name:                 strings.TrimSpace(req.Name),
+				Qty:                  qty,
+				OpWidth:              req.OpWidth,
+				OpHeight:             req.OpHeight,
+				StyleID:              req.StyleID,
+				OverlayType:          normalizeOverlayType(req.OverlayType),
+				DrawerFrontPosition:  normalizeDrawerFrontPosition(req.DrawerFrontPosition),
+				DoorType:             normalizeDoorType(req.DoorType),
+				ButtGap:              req.ButtGap,
+				UseCustomOverlay:     req.UseCustomOverlay,
+				OverlayLeft:          req.OverlayLeft,
+				OverlayRight:         req.OverlayRight,
+				OverlayTop:           req.OverlayTop,
+				OverlayBottom:        req.OverlayBottom,
+				PanelLayout:          normalizePanelLayout(req.PanelLayout),
+				SlabGrain:            normalizeSlabGrain(req.SlabGrain),
+				OverlaySubcategoryID: "",
+			},
+		},
+	}
+
+	items, err := buildCutListItems(job, styleByID)
+	if err != nil {
+		return QuickDoorCutListResponse{}, err
+	}
+
+	overlayLeft, overlayRight, overlayTop, overlayBottom := resolveDoorOverlays(job.Doors[0], job)
+	finishedWidth := req.OpWidth + overlayLeft + overlayRight
+	finishedHeight := req.OpHeight + overlayTop + overlayBottom
+	leafWidth := 0.0
+	if normalizeDoorType(req.DoorType) == "butt" {
+		gap := req.ButtGap
+		if gap <= 0 {
+			gap = 0.125
+		}
+		leafWidth = (finishedWidth - gap) / 2
+	}
+
+	return QuickDoorCutListResponse{
+		Name:           strings.TrimSpace(req.Name),
+		FinishedWidth:  finishedWidth,
+		FinishedHeight: finishedHeight,
+		LeafWidth:      leafWidth,
+		Items:          items,
+	}, nil
+}
+
+func buildCutListItems(job Job, styleByID map[string]DoorStyle) ([]CutListItem, error) {
 	groups := map[string]CutListItem{}
 
 	for _, door := range job.Doors {
@@ -72,7 +198,7 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 			doorType = normalizeDoorType(job.DoorType)
 		}
 
-		overlayLeft, overlayRight, overlayTop, overlayBottom := resolveDoorOverlays(door, *job)
+		overlayLeft, overlayRight, overlayTop, overlayBottom := resolveDoorOverlays(door, job)
 		finishedHeight := door.OpHeight + overlayTop + overlayBottom
 		if finishedHeight <= 0 {
 			continue
@@ -98,7 +224,7 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 
 			style, ok := styleByID[door.StyleID]
 			if !ok {
-				return CutListResponse{}, fmt.Errorf("door style not found for door entry: %s", door.StyleID)
+				return nil, fmt.Errorf("door style not found for door entry: %s", door.StyleID)
 			}
 
 			if style.IsSlab {
@@ -113,7 +239,7 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 		finishedWidth := door.OpWidth + overlayLeft + overlayRight
 		style, ok := styleByID[door.StyleID]
 		if !ok {
-			return CutListResponse{}, fmt.Errorf("door style not found for door entry: %s", door.StyleID)
+			return nil, fmt.Errorf("door style not found for door entry: %s", door.StyleID)
 		}
 
 		if style.IsSlab {
@@ -139,6 +265,9 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 		if items[i].SlabGrain != items[j].SlabGrain {
 			return items[i].SlabGrain < items[j].SlabGrain
 		}
+		if items[i].DrawerFrontPos != items[j].DrawerFrontPos {
+			return items[i].DrawerFrontPos < items[j].DrawerFrontPos
+		}
 		if items[i].Length != items[j].Length {
 			return items[i].Length < items[j].Length
 		}
@@ -148,25 +277,25 @@ func (a *App) GenerateCutList(jobID string) (CutListResponse, error) {
 		return items[i].Thickness < items[j].Thickness
 	})
 
-	return CutListResponse{
-		JobID:   job.ID,
-		JobName: job.Name,
-		Items:   items,
-	}, nil
+	return items, nil
 }
 
-func addGroupedPart(groups map[string]CutListItem, part string, slabUse string, slabGrain string, qty int, length float64, width float64, thickness float64) {
+func addGroupedPart(groups map[string]CutListItem, part string, slabUse string, slabGrain string, drawerFrontPos string, qty int, length float64, width float64, thickness float64) {
 	normalizedLength := roundToThirtySecond(length)
 	normalizedWidth := roundToThirtySecond(width)
 	normalizedThickness := roundToThirtySecond(thickness)
 	normalizedSlabUse := ""
 	normalizedSlabGrain := ""
+	normalizedDrawerFrontPos := ""
 	if part == "Slab" {
 		normalizedSlabUse = normalizeOverlayType(slabUse)
 		normalizedSlabGrain = normalizeSlabGrain(slabGrain)
+		if normalizedSlabUse == "drawer-front" {
+			normalizedDrawerFrontPos = normalizeDrawerFrontPosition(drawerFrontPos)
+		}
 	}
 
-	key := fmt.Sprintf("%s|%.5f|%.5f|%.5f|%s|%s", part, normalizedLength, normalizedWidth, normalizedThickness, normalizedSlabUse, normalizedSlabGrain)
+	key := fmt.Sprintf("%s|%.5f|%.5f|%.5f|%s|%s|%s", part, normalizedLength, normalizedWidth, normalizedThickness, normalizedSlabUse, normalizedSlabGrain, normalizedDrawerFrontPos)
 	current, exists := groups[key]
 	if !exists {
 		item := CutListItem{
@@ -180,6 +309,7 @@ func addGroupedPart(groups map[string]CutListItem, part string, slabUse string, 
 			ThicknessFormatted: FormatFraction(normalizedThickness),
 			SlabUse:            normalizedSlabUse,
 			SlabGrain:          normalizedSlabGrain,
+			DrawerFrontPos:     normalizedDrawerFrontPos,
 		}
 		item.Label = buildCutLabel(item)
 		groups[key] = item
@@ -215,9 +345,9 @@ func addLeafParts(groups map[string]CutListItem, style DoorStyle, openingQty int
 		return
 	}
 
-	addGroupedPart(groups, "Stile", "", "", openingQty*2, stileLength, style.StileWidth, frameThickness)
-	addGroupedPart(groups, "Rail", "", "", openingQty*2, railLength, style.RailWidth, frameThickness)
-	addGroupedPart(groups, "Panel", "", "", openingQty, panelHeight, panelWidth, style.PanelThickness)
+	addGroupedPart(groups, "Stile", "", "", "", openingQty*2, stileLength, style.StileWidth, frameThickness)
+	addGroupedPart(groups, "Rail", "", "", "", openingQty*2, railLength, style.RailWidth, frameThickness)
+	addGroupedPart(groups, "Panel", "", "", "", openingQty, panelHeight, panelWidth, style.PanelThickness)
 }
 
 func addTwoPanelVerticalParts(groups map[string]CutListItem, style DoorStyle, openingQty int, finishedWidth float64, finishedHeight float64) {
@@ -234,9 +364,9 @@ func addTwoPanelVerticalParts(groups map[string]CutListItem, style DoorStyle, op
 		return
 	}
 
-	addGroupedPart(groups, "Stile", "", "", openingQty*2, stileLength, style.StileWidth, frameThickness)
-	addGroupedPart(groups, "Rail", "", "", openingQty*3, railLength, style.RailWidth, frameThickness)
-	addGroupedPart(groups, "Panel", "", "", openingQty*2, panelHeight, panelWidth, style.PanelThickness)
+	addGroupedPart(groups, "Stile", "", "", "", openingQty*2, stileLength, style.StileWidth, frameThickness)
+	addGroupedPart(groups, "Rail", "", "", "", openingQty*3, railLength, style.RailWidth, frameThickness)
+	addGroupedPart(groups, "Panel", "", "", "", openingQty*2, panelHeight, panelWidth, style.PanelThickness)
 }
 
 func addTwoPanelHorizontalParts(groups map[string]CutListItem, style DoorStyle, openingQty int, finishedWidth float64, finishedHeight float64) {
@@ -254,10 +384,10 @@ func addTwoPanelHorizontalParts(groups map[string]CutListItem, style DoorStyle, 
 		return
 	}
 
-	addGroupedPart(groups, "Stile", "", "", openingQty*2, stileLength, style.StileWidth, frameThickness)
-	addGroupedPart(groups, "Rail", "", "", openingQty*2, railLength, style.RailWidth, frameThickness)
-	addGroupedPart(groups, "Vertical Rail", "", "", openingQty, verticalRailLength, style.StileWidth, frameThickness)
-	addGroupedPart(groups, "Panel", "", "", openingQty*2, panelHeight, panelWidth, style.PanelThickness)
+	addGroupedPart(groups, "Stile", "", "", "", openingQty*2, stileLength, style.StileWidth, frameThickness)
+	addGroupedPart(groups, "Rail", "", "", "", openingQty*2, railLength, style.RailWidth, frameThickness)
+	addGroupedPart(groups, "Vertical Rail", "", "", "", openingQty, verticalRailLength, style.StileWidth, frameThickness)
+	addGroupedPart(groups, "Panel", "", "", "", openingQty*2, panelHeight, panelWidth, style.PanelThickness)
 }
 
 func addSlabParts(groups map[string]CutListItem, door DoorEntry, openingQty int, finishedWidth float64, finishedHeight float64, thickness float64) {
@@ -269,7 +399,7 @@ func addSlabParts(groups map[string]CutListItem, door DoorEntry, openingQty int,
 		thickness = frameThickness
 	}
 
-	addGroupedPart(groups, "Slab", door.OverlayType, door.SlabGrain, openingQty, finishedHeight, finishedWidth, thickness)
+	addGroupedPart(groups, "Slab", door.OverlayType, door.SlabGrain, door.DrawerFrontPosition, openingQty, finishedHeight, finishedWidth, thickness)
 }
 
 func resolveDoorOverlays(door DoorEntry, job Job) (float64, float64, float64, float64) {
@@ -296,7 +426,11 @@ func buildCutLabel(item CutListItem) string {
 	if item.Part == "Slab" {
 		meta := ""
 		if item.SlabUse != "" || item.SlabGrain != "" {
-			meta = fmt.Sprintf(" (%s, %s)", formatSlabUseLabel(item.SlabUse), formatSlabGrainLabel(item.SlabGrain))
+			meta = fmt.Sprintf(" (%s, %s", formatSlabUseLabel(item.SlabUse), formatSlabGrainLabel(item.SlabGrain))
+			if item.SlabUse == "drawer-front" {
+				meta += fmt.Sprintf(", %s", formatDrawerFrontPositionLabel(item.DrawerFrontPos))
+			}
+			meta += ")"
 		}
 		if item.Width > 0 && item.Thickness > 0 {
 			return fmt.Sprintf("%dx %s%s %s x %s x %s", item.Qty, item.Part, meta, item.LengthFormatted, item.WidthFormatted, item.ThicknessFormatted)
@@ -338,6 +472,18 @@ func formatSlabGrainLabel(slabGrain string) string {
 	}
 
 	return "MDF"
+}
+
+func formatDrawerFrontPositionLabel(position string) string {
+	normalized := normalizeDrawerFrontPosition(position)
+	if normalized == "middle" {
+		return "Middle"
+	}
+	if normalized == "bottom" {
+		return "Bottom"
+	}
+
+	return "Top"
 }
 
 func roundToThirtySecond(value float64) float64 {

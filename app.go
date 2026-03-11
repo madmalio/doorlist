@@ -69,7 +69,7 @@ func (a *App) startup(ctx context.Context) {
 
 	a.settingsPath = filepath.Join(dataDir, "settings.json")
 	if _, statErr := os.Stat(a.settingsPath); errors.Is(statErr, os.ErrNotExist) {
-		payload, _ := json.MarshalIndent(AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}, "", "  ")
+		payload, _ := json.MarshalIndent(AppSettings{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}, "", "  ")
 		payload = append(payload, '\n')
 		_ = os.WriteFile(a.settingsPath, payload, 0o644)
 	}
@@ -101,6 +101,7 @@ type Job struct {
 	ID                       string      `json:"id"`
 	CustomerName             string      `json:"customerName"`
 	Name                     string      `json:"name"`
+	WoodChoice               string      `json:"woodChoice,omitempty"`
 	ProductionStatus         string      `json:"productionStatus"`
 	DefaultStyleID           string      `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string      `json:"defaultOverlayCategoryId"`
@@ -119,6 +120,7 @@ type Job struct {
 type CreateJobRequest struct {
 	CustomerName             string  `json:"customerName"`
 	Project                  string  `json:"project"`
+	WoodChoice               string  `json:"woodChoice,omitempty"`
 	ProductionStatus         string  `json:"productionStatus"`
 	DefaultStyleID           string  `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
@@ -135,6 +137,7 @@ type CreateJobRequest struct {
 type UpdateJobRequest struct {
 	CustomerName             string  `json:"customerName"`
 	Project                  string  `json:"project"`
+	WoodChoice               string  `json:"woodChoice,omitempty"`
 	ProductionStatus         string  `json:"productionStatus"`
 	DefaultStyleID           string  `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string  `json:"defaultOverlayCategoryId"`
@@ -163,7 +166,11 @@ type JobPageResponse struct {
 
 type AppSettings struct {
 	Theme             string            `json:"theme"`
+	MeasurementSystem string            `json:"measurementSystem,omitempty"`
+	MeasurementConfirmed bool           `json:"measurementConfirmed,omitempty"`
+	OnboardingDismissed bool            `json:"onboardingDismissed,omitempty"`
 	OverlayCategories []OverlayCategory `json:"overlayCategories"`
+	WoodPresets       []string          `json:"woodPresets,omitempty"`
 	OverlayPresets    []OverlayPreset   `json:"overlayPresets,omitempty"`
 	SeededDefaultSlab bool              `json:"seededDefaultSlab,omitempty"`
 }
@@ -178,6 +185,12 @@ type OverlayDataPayload struct {
 	Version           int               `json:"version"`
 	ExportedAt        string            `json:"exportedAt,omitempty"`
 	OverlayCategories []OverlayCategory `json:"overlayCategories"`
+}
+
+type WoodPresetsDataPayload struct {
+	Version     int      `json:"version"`
+	ExportedAt  string   `json:"exportedAt,omitempty"`
+	WoodPresets []string `json:"woodPresets"`
 }
 
 type AppBackupPayload struct {
@@ -200,9 +213,17 @@ type OverlayPreset struct {
 type OverlayCategory struct {
 	ID               string               `json:"id"`
 	Name             string               `json:"name"`
+	Default          *OverlayValues       `json:"default,omitempty"`
 	Items            []OverlaySubcategory `json:"items,omitempty"`
 	DoorItems        []OverlaySubcategory `json:"doorItems,omitempty"`
 	DrawerFrontItems []OverlaySubcategory `json:"drawerFrontItems,omitempty"`
+}
+
+type OverlayValues struct {
+	Left   float64 `json:"left"`
+	Right  float64 `json:"right"`
+	Top    float64 `json:"top"`
+	Bottom float64 `json:"bottom"`
 }
 
 type OverlaySubcategory struct {
@@ -223,7 +244,11 @@ type GlobalSearchResult struct {
 }
 
 type UpdateSettingsRequest struct {
-	Theme string `json:"theme"`
+	Theme             string   `json:"theme,omitempty"`
+	MeasurementSystem string   `json:"measurementSystem,omitempty"`
+	MeasurementConfirmed *bool `json:"measurementConfirmed,omitempty"`
+	OnboardingDismissed *bool  `json:"onboardingDismissed,omitempty"`
+	WoodPresets       []string `json:"woodPresets,omitempty"`
 }
 
 type DoorStyle struct {
@@ -261,6 +286,7 @@ type DoorEntry struct {
 	OpHeight             float64 `json:"opHeight"`
 	StyleID              string  `json:"styleId"`
 	OverlayType          string  `json:"overlayType"`
+	DrawerFrontPosition  string  `json:"drawerFrontPosition"`
 	OverlaySubcategoryID string  `json:"overlaySubcategoryId"`
 	CustomOverlay        float64 `json:"customOverlay"`
 	DoorType             string  `json:"doorType"`
@@ -368,6 +394,7 @@ func (a *App) CreateJob(req CreateJobRequest) (Job, error) {
 		ID:                       uuid.NewString(),
 		CustomerName:             strings.TrimSpace(req.CustomerName),
 		Name:                     strings.TrimSpace(req.Project),
+		WoodChoice:               normalizeWoodChoice(req.WoodChoice),
 		ProductionStatus:         normalizeProductionStatus(req.ProductionStatus),
 		DefaultStyleID:           strings.TrimSpace(req.DefaultStyleID),
 		DefaultOverlayCategoryID: strings.TrimSpace(req.DefaultOverlayCategoryID),
@@ -415,6 +442,7 @@ func (a *App) UpdateJob(id string, req UpdateJobRequest) (Job, error) {
 		if jobs[i].ID == id {
 			jobs[i].CustomerName = strings.TrimSpace(req.CustomerName)
 			jobs[i].Name = strings.TrimSpace(req.Project)
+			jobs[i].WoodChoice = normalizeWoodChoice(req.WoodChoice)
 			jobs[i].ProductionStatus = normalizeProductionStatus(req.ProductionStatus)
 			jobs[i].DefaultStyleID = strings.TrimSpace(req.DefaultStyleID)
 			jobs[i].DefaultOverlayCategoryID = strings.TrimSpace(req.DefaultOverlayCategoryID)
@@ -483,7 +511,21 @@ func (a *App) UpdateSettings(req UpdateSettingsRequest) (AppSettings, error) {
 		return AppSettings{}, err
 	}
 
-	settings.Theme = normalizeTheme(req.Theme)
+	if strings.TrimSpace(req.Theme) != "" {
+		settings.Theme = normalizeTheme(req.Theme)
+	}
+	if strings.TrimSpace(req.MeasurementSystem) != "" {
+		settings.MeasurementSystem = normalizeMeasurementSystem(req.MeasurementSystem)
+	}
+	if req.MeasurementConfirmed != nil {
+		settings.MeasurementConfirmed = *req.MeasurementConfirmed
+	}
+	if req.OnboardingDismissed != nil {
+		settings.OnboardingDismissed = *req.OnboardingDismissed
+	}
+	if req.WoodPresets != nil {
+		settings.WoodPresets = normalizeWoodPresets(req.WoodPresets)
+	}
 
 	if err := a.saveSettingsUnsafe(settings); err != nil {
 		return AppSettings{}, err
@@ -663,6 +705,50 @@ func (a *App) ImportOverlayData(payload OverlayDataPayload) ([]OverlayCategory, 
 	return settings.OverlayCategories, nil
 }
 
+func (a *App) ExportWoodPresetsData() (WoodPresetsDataPayload, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings, err := a.loadSettingsUnsafe()
+	if err != nil {
+		return WoodPresetsDataPayload{}, err
+	}
+
+	return WoodPresetsDataPayload{
+		Version:     1,
+		ExportedAt:  time.Now().UTC().Format(time.RFC3339),
+		WoodPresets: normalizeWoodPresets(settings.WoodPresets),
+	}, nil
+}
+
+func (a *App) ExportWoodPresetsDataToFile() (string, error) {
+	payload, err := a.ExportWoodPresetsData()
+	if err != nil {
+		return "", err
+	}
+
+	dateText := time.Now().UTC().Format("2006-01-02")
+	defaultName := fmt.Sprintf("cutlogic-wood-presets-%s.json", dateText)
+	return a.saveJSONWithDialog("Export Wood Presets", defaultName, payload)
+}
+
+func (a *App) ImportWoodPresetsData(payload WoodPresetsDataPayload) ([]string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	settings, err := a.loadSettingsUnsafe()
+	if err != nil {
+		return nil, err
+	}
+
+	settings.WoodPresets = normalizeWoodPresets(payload.WoodPresets)
+	if err := a.saveSettingsUnsafe(settings); err != nil {
+		return nil, err
+	}
+
+	return settings.WoodPresets, nil
+}
+
 func (a *App) ExportAllData() (AppBackupPayload, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -743,6 +829,7 @@ func (a *App) ImportAllData(payload AppBackupPayload) (AppBackupPayload, error) 
 		settings.Theme = "system"
 	}
 	settings.Theme = normalizeTheme(settings.Theme)
+	settings.MeasurementSystem = normalizeMeasurementSystem(settings.MeasurementSystem)
 	settings.OverlayCategories = normalizeOverlayCategoryList(settings.OverlayCategories)
 
 	styles := normalizeDoorStyleSliceForStorage(payload.Styles)
@@ -784,7 +871,7 @@ func (a *App) WipeAllData() error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	settings := AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}
+	settings := AppSettings{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}
 	if err := a.saveSettingsUnsafe(settings); err != nil {
 		return err
 	}
@@ -1021,6 +1108,7 @@ func (a *App) SaveJob(job Job) (Job, error) {
 	}
 	job.CustomerName = strings.TrimSpace(job.CustomerName)
 	job.Name = strings.TrimSpace(job.Name)
+	job.WoodChoice = normalizeWoodChoice(job.WoodChoice)
 	job.ProductionStatus = normalizeProductionStatus(job.ProductionStatus)
 	job.DefaultStyleID = strings.TrimSpace(job.DefaultStyleID)
 	job.DefaultOverlayCategoryID = strings.TrimSpace(job.DefaultOverlayCategoryID)
@@ -1036,6 +1124,7 @@ func (a *App) SaveJob(job Job) (Job, error) {
 		job.Doors[i].Name = strings.TrimSpace(job.Doors[i].Name)
 		job.Doors[i].DoorType = normalizeDoorType(job.Doors[i].DoorType)
 		job.Doors[i].OverlayType = normalizeOverlayType(job.Doors[i].OverlayType)
+		job.Doors[i].DrawerFrontPosition = normalizeDrawerFrontPosition(job.Doors[i].DrawerFrontPosition)
 		job.Doors[i].PanelLayout = normalizePanelLayout(job.Doors[i].PanelLayout)
 		job.Doors[i].SlabGrain = normalizeSlabGrain(job.Doors[i].SlabGrain)
 		if job.Doors[i].ButtGap <= 0 {
@@ -1099,10 +1188,22 @@ func (a *App) loadJobsUnsafe() ([]Job, error) {
 			updated = true
 		}
 
+		normalizedWoodChoice := normalizeWoodChoice(jobs[i].WoodChoice)
+		if jobs[i].WoodChoice != normalizedWoodChoice {
+			jobs[i].WoodChoice = normalizedWoodChoice
+			updated = true
+		}
+
 		for d := range jobs[i].Doors {
 			normalizedOverlayType := normalizeOverlayType(jobs[i].Doors[d].OverlayType)
 			if jobs[i].Doors[d].OverlayType != normalizedOverlayType {
 				jobs[i].Doors[d].OverlayType = normalizedOverlayType
+				updated = true
+			}
+
+			normalizedDrawerFrontPosition := normalizeDrawerFrontPosition(jobs[i].Doors[d].DrawerFrontPosition)
+			if jobs[i].Doors[d].DrawerFrontPosition != normalizedDrawerFrontPosition {
+				jobs[i].Doors[d].DrawerFrontPosition = normalizedDrawerFrontPosition
 				updated = true
 			}
 
@@ -1233,28 +1334,32 @@ func (a *App) seedDefaultSlabStyleOnceUnsafe() error {
 
 func (a *App) loadSettingsUnsafe() (AppSettings, error) {
 	if a.settingsPath == "" {
-		return AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}, nil
+		return AppSettings{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}, nil
 	}
 
 	bytes, err := os.ReadFile(a.settingsPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return AppSettings{Theme: "system", OverlayCategories: defaultOverlayCategories()}, nil
+			return AppSettings{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}, nil
 		}
 		return AppSettings{}, err
 	}
 
 	type settingsDisk struct {
 		Theme                 string            `json:"theme"`
+		MeasurementSystem     string            `json:"measurementSystem,omitempty"`
+		MeasurementConfirmed  bool              `json:"measurementConfirmed,omitempty"`
+		OnboardingDismissed   bool              `json:"onboardingDismissed,omitempty"`
 		OverlayCategories     []OverlayCategory `json:"overlayCategories"`
+		WoodPresets           []string          `json:"woodPresets,omitempty"`
 		DrawerFrontCategories []OverlayCategory `json:"drawerFrontCategories,omitempty"`
 		OverlayPresets        []OverlayPreset   `json:"overlayPresets,omitempty"`
 		SeededDefaultSlab     bool              `json:"seededDefaultSlab,omitempty"`
 	}
 
-	disk := settingsDisk{Theme: "system", OverlayCategories: defaultOverlayCategories()}
+		disk := settingsDisk{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}
 	if len(bytes) == 0 {
-		return AppSettings{Theme: disk.Theme, OverlayCategories: disk.OverlayCategories, OverlayPresets: disk.OverlayPresets, SeededDefaultSlab: disk.SeededDefaultSlab}, nil
+		return AppSettings{Theme: disk.Theme, MeasurementSystem: disk.MeasurementSystem, MeasurementConfirmed: disk.MeasurementConfirmed, OnboardingDismissed: disk.OnboardingDismissed, OverlayCategories: disk.OverlayCategories, WoodPresets: disk.WoodPresets, OverlayPresets: disk.OverlayPresets, SeededDefaultSlab: disk.SeededDefaultSlab}, nil
 	}
 
 	if err := json.Unmarshal(bytes, &disk); err != nil {
@@ -1263,13 +1368,19 @@ func (a *App) loadSettingsUnsafe() (AppSettings, error) {
 
 	settings := AppSettings{
 		Theme:             disk.Theme,
+		MeasurementSystem: disk.MeasurementSystem,
+		MeasurementConfirmed: disk.MeasurementConfirmed,
+		OnboardingDismissed: disk.OnboardingDismissed,
 		OverlayCategories: disk.OverlayCategories,
+		WoodPresets:       disk.WoodPresets,
 		OverlayPresets:    disk.OverlayPresets,
 		SeededDefaultSlab: disk.SeededDefaultSlab,
 	}
 
 	settings.Theme = normalizeTheme(settings.Theme)
+	settings.MeasurementSystem = normalizeMeasurementSystem(settings.MeasurementSystem)
 	settings.OverlayCategories = normalizeOverlayCategoryList(settings.OverlayCategories)
+	settings.WoodPresets = normalizeWoodPresets(settings.WoodPresets)
 	legacyDrawerCategories := normalizeOverlayCategoryList(disk.DrawerFrontCategories)
 	if len(legacyDrawerCategories) > 0 {
 		settings.OverlayCategories = mergeDrawerFrontIntoOverlayCategories(settings.OverlayCategories, legacyDrawerCategories)
@@ -1298,6 +1409,8 @@ func (a *App) saveSettingsUnsafe(settings AppSettings) error {
 	}
 
 	settings.OverlayCategories = normalizeOverlayCategoryList(settings.OverlayCategories)
+	settings.MeasurementSystem = normalizeMeasurementSystem(settings.MeasurementSystem)
+	settings.WoodPresets = normalizeWoodPresets(settings.WoodPresets)
 
 	payload, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
@@ -1315,6 +1428,15 @@ func normalizeTheme(theme string) string {
 	}
 
 	return "system"
+}
+
+func normalizeMeasurementSystem(system string) string {
+	normalized := strings.ToLower(strings.TrimSpace(system))
+	if normalized == "metric" || normalized == "imperial" {
+		return normalized
+	}
+
+	return "imperial"
 }
 
 func normalizeDoorType(doorType string) string {
@@ -1335,6 +1457,33 @@ func normalizeProductionStatus(status string) string {
 	return "draft"
 }
 
+func normalizeWoodChoice(woodChoice string) string {
+	return strings.TrimSpace(woodChoice)
+}
+
+func normalizeWoodPresets(woodPresets []string) []string {
+	if woodPresets == nil {
+		return []string{}
+	}
+
+	seen := map[string]bool{}
+	normalized := make([]string, 0, len(woodPresets))
+	for _, preset := range woodPresets {
+		value := strings.TrimSpace(preset)
+		if value == "" {
+			continue
+		}
+		key := strings.ToLower(value)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		normalized = append(normalized, value)
+	}
+
+	return normalized
+}
+
 func normalizeOverlayType(overlayType string) string {
 	normalized := strings.ToLower(strings.TrimSpace(overlayType))
 	if normalized == "drawer-front" {
@@ -1342,6 +1491,15 @@ func normalizeOverlayType(overlayType string) string {
 	}
 
 	return "door"
+}
+
+func normalizeDrawerFrontPosition(position string) string {
+	normalized := strings.ToLower(strings.TrimSpace(position))
+	if normalized == "middle" || normalized == "bottom" {
+		return normalized
+	}
+
+	return "top"
 }
 
 func normalizePanelLayout(layout string) string {
@@ -1355,11 +1513,17 @@ func normalizePanelLayout(layout string) string {
 
 func normalizeStyleUse(styleUse string) string {
 	normalized := strings.ToLower(strings.TrimSpace(styleUse))
-	if normalized == "door" || normalized == "drawer-front" {
+	if normalized == "door" || normalized == "drawer-front-top" || normalized == "drawer-front-middle" || normalized == "drawer-front-bottom" {
 		return normalized
 	}
+	if normalized == "drawer-front" {
+		return "drawer-front-top"
+	}
+	if normalized == "both" {
+		return "door"
+	}
 
-	return "both"
+	return "door"
 }
 
 func normalizeSlabGrain(slabGrain string) string {
@@ -1430,6 +1594,7 @@ func normalizeDoorStyleSliceForStorage(styles []DoorStyle) []DoorStyle {
 		}
 
 		style.IsSlab = false
+		style.StyleUse = normalizeStyleUse(style.StyleUse)
 		if strings.TrimSpace(style.ID) == "" {
 			style.ID = uuid.NewString()
 		}
@@ -1456,6 +1621,7 @@ func normalizeJobForStorage(job Job) Job {
 
 	job.CustomerName = strings.TrimSpace(job.CustomerName)
 	job.Name = strings.TrimSpace(job.Name)
+	job.WoodChoice = normalizeWoodChoice(job.WoodChoice)
 	job.ProductionStatus = normalizeProductionStatus(job.ProductionStatus)
 	job.DefaultStyleID = strings.TrimSpace(job.DefaultStyleID)
 	job.DefaultOverlayCategoryID = strings.TrimSpace(job.DefaultOverlayCategoryID)
@@ -1474,6 +1640,7 @@ func normalizeJobForStorage(job Job) Job {
 		job.Doors[i].Name = strings.TrimSpace(job.Doors[i].Name)
 		job.Doors[i].DoorType = normalizeDoorType(job.Doors[i].DoorType)
 		job.Doors[i].OverlayType = normalizeOverlayType(job.Doors[i].OverlayType)
+		job.Doors[i].DrawerFrontPosition = normalizeDrawerFrontPosition(job.Doors[i].DrawerFrontPosition)
 		job.Doors[i].PanelLayout = normalizePanelLayout(job.Doors[i].PanelLayout)
 		job.Doors[i].SlabGrain = normalizeSlabGrain(job.Doors[i].SlabGrain)
 		if job.Doors[i].ButtGap <= 0 {
@@ -1564,6 +1731,19 @@ func copyOverlaySubcategories(items []OverlaySubcategory) []OverlaySubcategory {
 	return copyItems
 }
 
+func normalizeOverlayValues(values *OverlayValues) *OverlayValues {
+	if values == nil {
+		return nil
+	}
+
+	return &OverlayValues{
+		Left:   values.Left,
+		Right:  values.Right,
+		Top:    values.Top,
+		Bottom: values.Bottom,
+	}
+}
+
 func normalizeOverlayCategoryList(categories []OverlayCategory) []OverlayCategory {
 	normalized := make([]OverlayCategory, 0, len(categories))
 	for _, category := range categories {
@@ -1585,6 +1765,7 @@ func normalizeOverlayCategoryList(categories []OverlayCategory) []OverlayCategor
 		normalized = append(normalized, OverlayCategory{
 			ID:               categoryID,
 			Name:             name,
+			Default:          normalizeOverlayValues(category.Default),
 			DoorItems:        normalizeOverlaySubcategories(doorSource),
 			DrawerFrontItems: normalizeOverlaySubcategories(category.DrawerFrontItems),
 		})
@@ -1625,6 +1806,7 @@ func mergeDrawerFrontIntoOverlayCategories(overlayCategories []OverlayCategory, 
 		newCategory := OverlayCategory{
 			ID:               normalized.ID,
 			Name:             normalized.Name,
+			Default:          normalizeOverlayValues(normalized.Default),
 			DoorItems:        []OverlaySubcategory{},
 			DrawerFrontItems: copyOverlaySubcategories(drawerItems),
 		}

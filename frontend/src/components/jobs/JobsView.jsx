@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Pencil, Plus, Printer, Trash2 } from "lucide-react";
 import {
   CreateJob,
   DeleteJob,
   GenerateCutList,
+  GetSettings,
   GetJobsPage,
   GetOverlayCategories,
   LoadDoorStyles,
@@ -16,6 +18,7 @@ import { ConfirmModal } from "../ui/ConfirmModal";
 import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
+import { useMeasurement } from "../ui/MeasurementProvider";
 import { printCutList } from "../../lib/cutListPrint";
 import { JobForm } from "./JobForm";
 
@@ -53,10 +56,13 @@ function getJobStatus(job) {
   );
 }
 
-export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
+export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onOpenOverlayPresets, openCreateIntent = 0 }) {
+  const lastHandledCreateIntentRef = useRef(0);
+  const { measurementSystem } = useMeasurement();
   const [jobs, setJobs] = useState([]);
   const [doorStyles, setDoorStyles] = useState([]);
   const [overlayCategories, setOverlayCategories] = useState([]);
+  const [woodPresets, setWoodPresets] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -68,8 +74,21 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
   const [jobToDelete, setJobToDelete] = useState(null);
   const [isPrintingJobId, setIsPrintingJobId] = useState(null);
   const [openStatusMenuJobId, setOpenStatusMenuJobId] = useState(null);
+  const [statusMenuPosition, setStatusMenuPosition] = useState({ top: 0, left: 0 });
   const [isUpdatingStatusJobId, setIsUpdatingStatusJobId] = useState(null);
+  const [doorStylesLoaded, setDoorStylesLoaded] = useState(false);
+  const [pendingCreateFromIntent, setPendingCreateFromIntent] = useState(false);
   const { showToast } = useToast();
+  const styleNameById = useMemo(() => {
+    const map = new Map();
+    (doorStyles || []).forEach((style) => {
+      if (!style?.id) {
+        return;
+      }
+      map.set(style.id, style.name || "N/A");
+    });
+    return map;
+  }, [doorStyles]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -80,6 +99,8 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
         setDoorStyles(styles || []);
       } catch (error) {
         showToast("Failed to load door styles", "error");
+      } finally {
+        setDoorStylesLoaded(true);
       }
     };
 
@@ -95,6 +116,17 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
     };
 
     void fetchOverlayCategories();
+
+    const fetchSettings = async () => {
+      try {
+        const settings = await GetSettings();
+        setWoodPresets(Array.isArray(settings?.woodPresets) ? settings.woodPresets : []);
+      } catch (error) {
+        showToast("Failed to load app settings", "error");
+      }
+    };
+
+    void fetchSettings();
   }, [showToast]);
 
   useEffect(() => {
@@ -129,6 +161,29 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
       onSearchRequestHandled();
     }
   }, [searchRequest, onSearchRequestHandled]);
+
+  useEffect(() => {
+    if (!openCreateIntent || openCreateIntent === lastHandledCreateIntentRef.current) {
+      return;
+    }
+    lastHandledCreateIntentRef.current = openCreateIntent;
+    setPendingCreateFromIntent(true);
+  }, [openCreateIntent]);
+
+  useEffect(() => {
+    if (!pendingCreateFromIntent || !doorStylesLoaded) {
+      return;
+    }
+
+    if (doorStyles.length === 0) {
+      showToast("Create a catalog door style first", "error");
+    } else {
+      setEditingJob(null);
+      setIsModalOpen(true);
+    }
+
+    setPendingCreateFromIntent(false);
+  }, [pendingCreateFromIntent, doorStylesLoaded, doorStyles, showToast]);
 
   const openCreate = () => {
     if (doorStyles.length === 0) {
@@ -214,6 +269,9 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
       if (event.target.closest('[data-status-menu-root="true"]')) {
         return;
       }
+      if (event.target.closest('[data-status-menu-popup="true"]')) {
+        return;
+      }
       setOpenStatusMenuJobId(null);
     };
 
@@ -222,6 +280,28 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, [openStatusMenuJobId]);
+
+  useEffect(() => {
+    if (!openStatusMenuJobId) {
+      return undefined;
+    }
+
+    const handleViewportChange = () => {
+      setOpenStatusMenuJobId(null);
+    };
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [openStatusMenuJobId]);
+
+  const statusMenuJob = useMemo(
+    () => jobs.find((job) => job.id === openStatusMenuJobId) || null,
+    [jobs, openStatusMenuJobId],
+  );
 
   const handleQuickPrint = async (job) => {
     if (!job?.id || isPrintingJobId) {
@@ -241,8 +321,11 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
       const printed = await printCutList({
         customerName: job.customerName,
         jobName: job.name,
+        woodChoice: job.woodChoice,
+        frameName: styleNameById.get(job.defaultStyleId) || "N/A",
         items,
         openingCount,
+        measurementSystem,
       });
       if (!printed) {
         showToast("No printable cut list sections found", "error");
@@ -371,7 +454,11 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
                           {job.customerName || "-"}
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
-                          {job.name}
+                          <span className="block">{job.name}</span>
+                          <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{styleNameById.get(job.defaultStyleId) || "N/A"}</span>
+                          <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">
+                            <span className="font-semibold text-zinc-700 dark:text-zinc-300">{job.woodChoice || 'N/A'}</span>
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <div
@@ -382,9 +469,20 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                setOpenStatusMenuJobId((prev) =>
-                                  prev === job.id ? null : job.id,
-                                );
+                                const nextOpen = openStatusMenuJobId !== job.id;
+                                if (!nextOpen) {
+                                  setOpenStatusMenuJobId(null);
+                                  return;
+                                }
+
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const menuHeight = 180;
+                                const openUpward = rect.bottom + menuHeight > window.innerHeight;
+                                setStatusMenuPosition({
+                                  left: Math.max(8, rect.left),
+                                  top: openUpward ? Math.max(8, rect.top - menuHeight - 8) : Math.min(window.innerHeight - menuHeight - 8, rect.bottom + 8),
+                                });
+                                setOpenStatusMenuJobId(job.id);
                               }}
                               className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${status.className}`}
                               disabled={isUpdatingStatusJobId === job.id}
@@ -393,30 +491,6 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
                                 ? "Updating..."
                                 : status.label}
                             </button>
-
-                            {openStatusMenuJobId === job.id ? (
-                              <div className="absolute left-0 top-full z-20 mt-2 w-44 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                                {productionStatusOptions.map((option) => (
-                                  <button
-                                    key={option.value}
-                                    type="button"
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      void handleStatusUpdate(
-                                        job,
-                                        option.value,
-                                      );
-                                    }}
-                                    className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
-                                  >
-                                    <span
-                                      className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${option.className.split(" ")[0]}`}
-                                    />
-                                    {option.label}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : null}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
@@ -526,11 +600,17 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
         isOpen={isModalOpen}
         onClose={closeModal}
         title={editingJob ? "Edit Job" : "Create Job"}
+        maxWidthClass="max-w-4xl"
       >
         <JobForm
           job={editingJob}
           doorStyles={doorStyles}
           overlayCategories={overlayCategories}
+          woodPresets={woodPresets}
+          onOpenOverlayPresets={() => {
+            closeModal();
+            onOpenOverlayPresets?.();
+          }}
           onSubmit={handleSubmit}
           onCancel={closeModal}
         />
@@ -545,6 +625,31 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob }) {
         warning="This action permanently removes the job and its door entries."
         confirmLabel="Delete Job"
       />
+
+      {openStatusMenuJobId && statusMenuJob
+        ? createPortal(
+            <div
+              data-status-menu-popup="true"
+              className="fixed z-[200] w-44 rounded-lg border border-zinc-200 bg-white p-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+              style={{ left: statusMenuPosition.left, top: statusMenuPosition.top }}
+            >
+              {productionStatusOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    void handleStatusUpdate(statusMenuJob, option.value);
+                  }}
+                  className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  <span className={`mr-2 inline-block h-2.5 w-2.5 rounded-full ${option.className.split(" ")[0]}`} />
+                  {option.label}
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

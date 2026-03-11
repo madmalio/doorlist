@@ -27,16 +27,37 @@ export function getStyleVariantLabel(style) {
 
 export function getStyleUse(style) {
   const value = (style?.styleUse || '').trim().toLowerCase();
-  if (value === 'door' || value === 'drawer-front') {
+  if (
+    value === 'door' ||
+    value === 'drawer-front-top' ||
+    value === 'drawer-front-middle' ||
+    value === 'drawer-front-bottom'
+  ) {
     return value;
   }
-  return 'both';
+  if (value === 'drawer-front') {
+    return 'drawer-front-top';
+  }
+
+  return style?.isSlab ? 'both' : 'door';
 }
 
-export function styleMatchesOverlayType(style, overlayType) {
+export function styleMatchesOverlayType(style, overlayType, drawerFrontPosition = 'top') {
   const use = getStyleUse(style);
   const target = overlayType === 'drawer-front' ? 'drawer-front' : 'door';
-  return use === 'both' || use === target;
+  if (style?.isSlab) {
+    return true;
+  }
+
+  if (target === 'door') {
+    return use === 'door';
+  }
+
+  const normalizedPosition = ['middle', 'bottom'].includes(String(drawerFrontPosition).toLowerCase())
+    ? String(drawerFrontPosition).toLowerCase()
+    : 'top';
+  const positionTarget = `drawer-front-${normalizedPosition}`;
+  return use === positionTarget;
 }
 
 export function getStyleDisplayName(style) {
