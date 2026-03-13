@@ -281,13 +281,13 @@ export function CatalogView() {
       {styles.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-zinc-500 dark:text-zinc-400">
-            No styles yet. Add your first catalog style to get started.
+            No styles yet. Add your first style to get started.
           </CardContent>
         </Card>
       ) : filteredFamilies.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-zinc-500 dark:text-zinc-400">
-            No catalog styles match your search.
+            No styles match your search.
           </CardContent>
         </Card>
       ) : (

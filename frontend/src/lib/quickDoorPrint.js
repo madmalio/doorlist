@@ -89,6 +89,24 @@ function getFrameLengthLabel(items, measurementSystem) {
   return `Linear Feet: ${totalFeet.toFixed(2)}`;
 }
 
+function getAreaLabel(items, measurementSystem) {
+  if (!items.length) {
+    return '';
+  }
+
+  const totalSquareFeet = items.reduce((sum, item) => {
+    const width = Number(item.width) || 0;
+    const length = Number(item.length) || 0;
+    const qty = Number(item.qty) || 0;
+    return sum + ((width * length) / 144) * qty;
+  }, 0);
+
+  if (measurementSystem === 'metric') {
+    return `Total Area: ${(totalSquareFeet * 0.092903).toFixed(2)} m^2`;
+  }
+  return `Square Feet: ${totalSquareFeet.toFixed(2)}`;
+}
+
 function drawerFrontPositionLabel(value) {
   if (value === 'middle') {
     return 'Middle';
@@ -114,6 +132,8 @@ export async function printQuickDoorSheet({ report, measurementSystem = 'imperia
   const panelRows = panelItems.map((item) => rowHtml(item, measurementSystem)).join('');
   const slabRows = slabItems.map((item) => rowHtml(item, measurementSystem)).join('');
   const frameLengthLabel = getFrameLengthLabel(frameItems, measurementSystem);
+  const panelAreaLabel = getAreaLabel(panelItems, measurementSystem);
+  const slabAreaLabel = getAreaLabel(slabItems, measurementSystem);
   const widthLabel = diagramWidthLabel(report, measurementSystem);
   const heightLabel = diagramHeightLabel(report);
 
@@ -225,8 +245,8 @@ export async function printQuickDoorSheet({ report, measurementSystem = 'imperia
     </div>
     <div>
       ${frameRows ? `<div class="section"><h3>Stiles & Rails</h3><table><thead><tr><th>Id</th><th>Part</th><th>Qty</th><th>Thickness</th><th>Width</th><th>Length</th></tr></thead><tbody>${frameRows}</tbody></table>${frameLengthLabel ? `<div class="section-footer">${escapeHtml(frameLengthLabel)}</div>` : ''}</div>` : ''}
-      ${panelRows ? `<div class="section"><h3>Panels</h3><table><thead><tr><th>Id</th><th>Part</th><th>Qty</th><th>Thickness</th><th>Width</th><th>Length</th></tr></thead><tbody>${panelRows}</tbody></table></div>` : ''}
-      ${slabRows ? `<div class="section"><h3>Slabs</h3><table><thead><tr><th>Id</th><th>Part</th><th>Qty</th><th>Thickness</th><th>Width</th><th>Length</th></tr></thead><tbody>${slabRows}</tbody></table></div>` : ''}
+      ${panelRows ? `<div class="section"><h3>Panels</h3><table><thead><tr><th>Id</th><th>Part</th><th>Qty</th><th>Thickness</th><th>Width</th><th>Length</th></tr></thead><tbody>${panelRows}</tbody></table>${panelAreaLabel ? `<div class="section-footer">${escapeHtml(panelAreaLabel)}</div>` : ''}</div>` : ''}
+      ${slabRows ? `<div class="section"><h3>Slabs</h3><table><thead><tr><th>Id</th><th>Part</th><th>Qty</th><th>Thickness</th><th>Width</th><th>Length</th></tr></thead><tbody>${slabRows}</tbody></table>${slabAreaLabel ? `<div class="section-footer">${escapeHtml(slabAreaLabel)}</div>` : ''}</div>` : ''}
     </div>
   </div>
   </body></html>`;

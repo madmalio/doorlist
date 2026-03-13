@@ -41,6 +41,26 @@ function getFrameLengthLabel(items, measurementSystem) {
   return `Linear Feet: ${totalFeet.toFixed(2)}`;
 }
 
+function getAreaLabel(items, measurementSystem) {
+  if (!items.length) {
+    return "";
+  }
+
+  const totalSquareFeet = items.reduce((sum, item) => {
+    const width = Number(item.width) || 0;
+    const length = Number(item.length) || 0;
+    const qty = Number(item.qty) || 0;
+    return sum + ((width * length) / 144) * qty;
+  }, 0);
+
+  if (measurementSystem === "metric") {
+    const totalSquareMeters = totalSquareFeet * 0.092903;
+    return `Total Area: ${totalSquareMeters.toFixed(2)} m^2`;
+  }
+
+  return `Square Feet: ${totalSquareFeet.toFixed(2)}`;
+}
+
 function formatSlabUse(value) {
   return value === "drawer-front" ? "Drawer Front" : "Door";
 }
@@ -99,14 +119,14 @@ function buildSections(items, measurementSystem) {
       title: "Slabs",
       items: slabItems,
       thicknessLabel: getThicknessLabel(slabItems, measurementSystem),
-      footerLabel: "",
+      footerLabel: getAreaLabel(slabItems, measurementSystem),
     },
     {
       id: "panel",
       title: "Panels",
       items: panelItems,
       thicknessLabel: getThicknessLabel(panelItems, measurementSystem),
-      footerLabel: "",
+      footerLabel: getAreaLabel(panelItems, measurementSystem),
     },
   ].filter((section) => section.items.length > 0);
 }

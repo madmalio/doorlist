@@ -54,6 +54,7 @@ export namespace main {
 	    name: string;
 	    woodChoice?: string;
 	    productionStatus: string;
+	    archived?: boolean;
 	    defaultStyleId: string;
 	    defaultOverlayCategoryId: string;
 	    doorType: string;
@@ -79,6 +80,7 @@ export namespace main {
 	        this.name = source["name"];
 	        this.woodChoice = source["woodChoice"];
 	        this.productionStatus = source["productionStatus"];
+	        this.archived = source["archived"];
 	        this.defaultStyleId = source["defaultStyleId"];
 	        this.defaultOverlayCategoryId = source["defaultOverlayCategoryId"];
 	        this.doorType = source["doorType"];
@@ -525,6 +527,7 @@ export namespace main {
 	    page: number;
 	    pageSize: number;
 	    search: string;
+	    includeArchived?: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new JobPageRequest(source);
@@ -535,6 +538,7 @@ export namespace main {
 	        this.page = source["page"];
 	        this.pageSize = source["pageSize"];
 	        this.search = source["search"];
+	        this.includeArchived = source["includeArchived"];
 	    }
 	}
 	export class JobPageResponse {

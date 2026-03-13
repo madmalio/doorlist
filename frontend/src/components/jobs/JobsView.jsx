@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Pencil, Plus, Printer, Trash2 } from "lucide-react";
+import { Archive, Pencil, Plus, Printer, Trash2, Undo2 } from "lucide-react";
 import {
   CreateJob,
   DeleteJob,
   GenerateCutList,
   GetSettings,
-  GetJobsPage,
   GetOverlayCategories,
+  LoadJobs,
   LoadDoorStyles,
   SaveJob,
   UpdateJob,
@@ -64,10 +64,10 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
   const [overlayCategories, setOverlayCategories] = useState([]);
   const [woodPresets, setWoodPresets] = useState([]);
   const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingJob, setEditingJob] = useState(null);
@@ -90,7 +90,26 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
     return map;
   }, [doorStyles]);
 
+  const filteredJobs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (jobs || [])
+      .filter((job) => (showArchived ? true : !job.archived))
+      .filter((job) => {
+        if (!query) {
+          return true;
+        }
+        const haystack = `${job.customerName || ""} ${job.name || ""}`.toLowerCase();
+        return haystack.includes(query);
+      })
+      .sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime());
+  }, [jobs, search, showArchived]);
+
+  const total = filteredJobs.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pagedJobs = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredJobs.slice(start, start + pageSize);
+  }, [filteredJobs, page, pageSize]);
 
   useEffect(() => {
     const fetchDoorStyles = async () => {
@@ -131,24 +150,27 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
 
   useEffect(() => {
     const fetchJobs = async () => {
-      setIsLoading(true);
+      setIsInitialLoading(true);
       try {
-        const response = await GetJobsPage({ page, pageSize, search });
-        setJobs(response?.items || []);
-        setTotal(response?.total || 0);
+        const loaded = await LoadJobs();
+        setJobs(Array.isArray(loaded) ? loaded : []);
       } catch (error) {
         showToast("Failed to load jobs", "error");
       } finally {
-        setIsLoading(false);
+        setIsInitialLoading(false);
       }
     };
 
     void fetchJobs();
-  }, [page, pageSize, search, showToast]);
+  }, [showToast]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, pageSize]);
+  }, [search, pageSize, showArchived]);
+
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, totalPages));
+  }, [totalPages]);
 
   useEffect(() => {
     if (!searchRequest) {
@@ -205,9 +227,8 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
   };
 
   const reload = async () => {
-    const response = await GetJobsPage({ page, pageSize, search });
-    setJobs(response?.items || []);
-    setTotal(response?.total || 0);
+    const loaded = await LoadJobs();
+    setJobs(Array.isArray(loaded) ? loaded : []);
   };
 
   const handleSubmit = async (payload) => {
@@ -370,7 +391,33 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
     }
   };
 
-  if (isLoading) {
+  const handleArchiveToggle = async (job, archived) => {
+    if (!job?.id || isUpdatingStatusJobId) {
+      return;
+    }
+
+    setIsUpdatingStatusJobId(job.id);
+    try {
+      const updated = await SaveJob({ ...job, archived });
+      setJobs((prev) =>
+        prev.map((item) =>
+          item.id === job.id
+            ? {
+                ...item,
+                archived: updated?.archived ?? archived,
+              }
+            : item,
+        ),
+      );
+      showToast(archived ? "Job archived" : "Job restored", "success");
+    } catch (error) {
+      showToast(archived ? "Failed to archive job" : "Failed to restore job", "error");
+    } finally {
+      setIsUpdatingStatusJobId(null);
+    }
+  };
+
+  if (isInitialLoading) {
     return (
       <div className="flex h-64 items-center justify-center text-zinc-500 dark:text-zinc-400">
         Loading jobs...
@@ -403,6 +450,17 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
         onChange={(event) => setSearch(event.target.value)}
       />
 
+      <label className="inline-flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300 print:hidden">
+        <input
+          type="checkbox"
+          checked={showArchived}
+          onChange={(event) => setShowArchived(event.target.checked)}
+        />
+        Show Archived
+      </label>
+      {showArchived ? (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 print:hidden">Showing active and archived jobs</p>
+      ) : null}
       {total === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-zinc-500 dark:text-zinc-400">
@@ -441,13 +499,13 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((job) =>
+                {pagedJobs.map((job) =>
                   (() => {
                     const status = getJobStatus(job);
                     return (
                       <tr
                         key={job.id}
-                        className="cursor-pointer border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800"
+                        className={`cursor-pointer border-b border-zinc-200 hover:bg-zinc-100 dark:border-zinc-800 dark:hover:bg-zinc-800 ${job.archived ? "bg-zinc-50 text-zinc-500 dark:bg-zinc-900/50 dark:text-zinc-400" : ""}`}
                         onClick={() => onOpenJob(job.id)}
                       >
                         <td className="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
@@ -461,10 +519,11 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <div
-                            data-status-menu-root="true"
-                            className="relative inline-flex"
-                          >
+                          <div className="flex items-center gap-2">
+                            <div
+                              data-status-menu-root="true"
+                              className="relative inline-flex"
+                            >
                             <button
                               type="button"
                               onClick={(event) => {
@@ -491,6 +550,12 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
                                 ? "Updating..."
                                 : status.label}
                             </button>
+                            </div>
+                            {job.archived ? (
+                              <span className="inline-flex rounded-full bg-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                                Archived
+                              </span>
+                            ) : null}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
@@ -512,6 +577,28 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
                                 size={14}
                                 className="text-zinc-500 dark:text-zinc-400"
                               />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleArchiveToggle(job, !Boolean(job.archived));
+                              }}
+                              title={job.archived ? "Restore job" : "Archive job"}
+                              disabled={isUpdatingStatusJobId === job.id}
+                            >
+                              {job.archived ? (
+                                <Undo2
+                                  size={14}
+                                  className="text-zinc-500 dark:text-zinc-400"
+                                />
+                              ) : (
+                                <Archive
+                                  size={14}
+                                  className="text-zinc-500 dark:text-zinc-400"
+                                />
+                              )}
                             </Button>
                             <Button
                               variant="ghost"

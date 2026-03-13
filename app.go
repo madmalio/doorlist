@@ -103,6 +103,7 @@ type Job struct {
 	Name                     string      `json:"name"`
 	WoodChoice               string      `json:"woodChoice,omitempty"`
 	ProductionStatus         string      `json:"productionStatus"`
+	Archived                 bool        `json:"archived,omitempty"`
 	DefaultStyleID           string      `json:"defaultStyleId"`
 	DefaultOverlayCategoryID string      `json:"defaultOverlayCategoryId"`
 	DoorType                 string      `json:"doorType"`
@@ -152,9 +153,10 @@ type UpdateJobRequest struct {
 }
 
 type JobPageRequest struct {
-	Page     int    `json:"page"`
-	PageSize int    `json:"pageSize"`
-	Search   string `json:"search"`
+	Page            int    `json:"page"`
+	PageSize        int    `json:"pageSize"`
+	Search          string `json:"search"`
+	IncludeArchived bool   `json:"includeArchived,omitempty"`
 }
 
 type JobPageResponse struct {
@@ -165,14 +167,14 @@ type JobPageResponse struct {
 }
 
 type AppSettings struct {
-	Theme             string            `json:"theme"`
-	MeasurementSystem string            `json:"measurementSystem,omitempty"`
-	MeasurementConfirmed bool           `json:"measurementConfirmed,omitempty"`
-	OnboardingDismissed bool            `json:"onboardingDismissed,omitempty"`
-	OverlayCategories []OverlayCategory `json:"overlayCategories"`
-	WoodPresets       []string          `json:"woodPresets,omitempty"`
-	OverlayPresets    []OverlayPreset   `json:"overlayPresets,omitempty"`
-	SeededDefaultSlab bool              `json:"seededDefaultSlab,omitempty"`
+	Theme                string            `json:"theme"`
+	MeasurementSystem    string            `json:"measurementSystem,omitempty"`
+	MeasurementConfirmed bool              `json:"measurementConfirmed,omitempty"`
+	OnboardingDismissed  bool              `json:"onboardingDismissed,omitempty"`
+	OverlayCategories    []OverlayCategory `json:"overlayCategories"`
+	WoodPresets          []string          `json:"woodPresets,omitempty"`
+	OverlayPresets       []OverlayPreset   `json:"overlayPresets,omitempty"`
+	SeededDefaultSlab    bool              `json:"seededDefaultSlab,omitempty"`
 }
 
 type CatalogDataPayload struct {
@@ -244,11 +246,11 @@ type GlobalSearchResult struct {
 }
 
 type UpdateSettingsRequest struct {
-	Theme             string   `json:"theme,omitempty"`
-	MeasurementSystem string   `json:"measurementSystem,omitempty"`
-	MeasurementConfirmed *bool `json:"measurementConfirmed,omitempty"`
-	OnboardingDismissed *bool  `json:"onboardingDismissed,omitempty"`
-	WoodPresets       []string `json:"woodPresets,omitempty"`
+	Theme                string   `json:"theme,omitempty"`
+	MeasurementSystem    string   `json:"measurementSystem,omitempty"`
+	MeasurementConfirmed *bool    `json:"measurementConfirmed,omitempty"`
+	OnboardingDismissed  *bool    `json:"onboardingDismissed,omitempty"`
+	WoodPresets          []string `json:"woodPresets,omitempty"`
 }
 
 type DoorStyle struct {
@@ -340,6 +342,9 @@ func (a *App) GetJobsPage(req JobPageRequest) (JobPageResponse, error) {
 	searchTerm := strings.ToLower(strings.TrimSpace(req.Search))
 	filtered := make([]Job, 0, len(jobs))
 	for _, job := range jobs {
+		if !req.IncludeArchived && job.Archived {
+			continue
+		}
 		if searchTerm == "" {
 			filtered = append(filtered, job)
 			continue
@@ -1357,7 +1362,7 @@ func (a *App) loadSettingsUnsafe() (AppSettings, error) {
 		SeededDefaultSlab     bool              `json:"seededDefaultSlab,omitempty"`
 	}
 
-		disk := settingsDisk{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}
+	disk := settingsDisk{Theme: "system", MeasurementSystem: "imperial", OverlayCategories: defaultOverlayCategories(), WoodPresets: []string{}}
 	if len(bytes) == 0 {
 		return AppSettings{Theme: disk.Theme, MeasurementSystem: disk.MeasurementSystem, MeasurementConfirmed: disk.MeasurementConfirmed, OnboardingDismissed: disk.OnboardingDismissed, OverlayCategories: disk.OverlayCategories, WoodPresets: disk.WoodPresets, OverlayPresets: disk.OverlayPresets, SeededDefaultSlab: disk.SeededDefaultSlab}, nil
 	}
@@ -1367,14 +1372,14 @@ func (a *App) loadSettingsUnsafe() (AppSettings, error) {
 	}
 
 	settings := AppSettings{
-		Theme:             disk.Theme,
-		MeasurementSystem: disk.MeasurementSystem,
+		Theme:                disk.Theme,
+		MeasurementSystem:    disk.MeasurementSystem,
 		MeasurementConfirmed: disk.MeasurementConfirmed,
-		OnboardingDismissed: disk.OnboardingDismissed,
-		OverlayCategories: disk.OverlayCategories,
-		WoodPresets:       disk.WoodPresets,
-		OverlayPresets:    disk.OverlayPresets,
-		SeededDefaultSlab: disk.SeededDefaultSlab,
+		OnboardingDismissed:  disk.OnboardingDismissed,
+		OverlayCategories:    disk.OverlayCategories,
+		WoodPresets:          disk.WoodPresets,
+		OverlayPresets:       disk.OverlayPresets,
+		SeededDefaultSlab:    disk.SeededDefaultSlab,
 	}
 
 	settings.Theme = normalizeTheme(settings.Theme)

@@ -368,6 +368,36 @@ export function QuickDoorView({ isOpen, onClose }) {
     }
     return `Linear Feet: ${totalFeet.toFixed(2)}`;
   }, [frameItems, measurementSystem]);
+  const panelAreaLabel = useMemo(() => {
+    if (!panelItems.length) {
+      return '';
+    }
+    const totalSquareFeet = panelItems.reduce((sum, item) => {
+      const width = Number(item.width) || 0;
+      const length = Number(item.length) || 0;
+      const qty = Number(item.qty) || 0;
+      return sum + ((width * length) / 144) * qty;
+    }, 0);
+    if (measurementSystem === 'metric') {
+      return `Total Area: ${(totalSquareFeet * 0.092903).toFixed(2)} m^2`;
+    }
+    return `Square Feet: ${totalSquareFeet.toFixed(2)}`;
+  }, [panelItems, measurementSystem]);
+  const slabAreaLabel = useMemo(() => {
+    if (!slabItems.length) {
+      return '';
+    }
+    const totalSquareFeet = slabItems.reduce((sum, item) => {
+      const width = Number(item.width) || 0;
+      const length = Number(item.length) || 0;
+      const qty = Number(item.qty) || 0;
+      return sum + ((width * length) / 144) * qty;
+    }, 0);
+    if (measurementSystem === 'metric') {
+      return `Total Area: ${(totalSquareFeet * 0.092903).toFixed(2)} m^2`;
+    }
+    return `Square Feet: ${totalSquareFeet.toFixed(2)}`;
+  }, [slabItems, measurementSystem]);
   const reopenEditor = () => {
     setIsPreviewOpen(false);
     setIsSetupOpen(true);
@@ -541,6 +571,16 @@ export function QuickDoorView({ isOpen, onClose }) {
                     {sectionId === 'frame' && frameLengthLabel ? (
                       <div className="mt-2 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         {frameLengthLabel}
+                      </div>
+                    ) : null}
+                    {sectionId === 'panel' && panelAreaLabel ? (
+                      <div className="mt-2 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        {panelAreaLabel}
+                      </div>
+                    ) : null}
+                    {sectionId === 'slab' && slabAreaLabel ? (
+                      <div className="mt-2 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                        {slabAreaLabel}
                       </div>
                     ) : null}
                   </div>
