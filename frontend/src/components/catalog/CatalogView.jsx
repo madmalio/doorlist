@@ -9,6 +9,7 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useMeasurement } from '../ui/MeasurementProvider';
+import { useLicense } from '../ui/LicenseProvider';
 import { formatLengthDisplay } from '../../lib/units';
 import { getStyleFamily, getStyleUse, getStyleVariant, getStyleVariantLabel, groupStylesByFamily } from '../../lib/styleCatalog';
 
@@ -32,8 +33,18 @@ function readCollapsedFamilies() {
   }
 }
 
-export function CatalogView() {
+export function CatalogView({ onRequireLicense }) {
   const { measurementSystem } = useMeasurement();
+  const { can, capabilityKeys, getCapabilityMessage } = useLicense();
+  const canManageCatalog = can(capabilityKeys.manageCatalog);
+  const requireCatalogAccess = () => {
+    if (canManageCatalog) {
+      return true;
+    }
+    showToast(`${getCapabilityMessage(capabilityKeys.manageCatalog)} Opening License settings...`, 'error');
+    onRequireLicense?.();
+    return false;
+  };
   const [styles, setStyles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [hasLoadedStyles, setHasLoadedStyles] = useState(false);
@@ -134,6 +145,9 @@ export function CatalogView() {
   };
 
   const openCreate = (family = '', styleUse = 'door') => {
+    if (!requireCatalogAccess()) {
+      return;
+    }
     setEditingStyle(null);
     setCreateFamily(family);
     setCreateStyleUse(styleUse);
@@ -141,11 +155,17 @@ export function CatalogView() {
   };
 
   const openEdit = (style) => {
+    if (!requireCatalogAccess()) {
+      return;
+    }
     setEditingStyle(style);
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (payload) => {
+    if (!requireCatalogAccess()) {
+      return;
+    }
     try {
       if (editingStyle) {
         await UpdateDoorStyle(editingStyle.id, payload);
@@ -162,6 +182,9 @@ export function CatalogView() {
   };
 
   const openDeleteModal = (style) => {
+    if (!requireCatalogAccess()) {
+      return;
+    }
     setStyleToDelete(style);
     setIsDeleteModalOpen(true);
   };
@@ -172,6 +195,9 @@ export function CatalogView() {
   };
 
   const handleDelete = async () => {
+    if (!requireCatalogAccess()) {
+      return;
+    }
     if (!styleToDelete) {
       return;
     }
@@ -187,6 +213,9 @@ export function CatalogView() {
   };
 
   const persistStyleOrder = async (nextStyles) => {
+    if (!requireCatalogAccess()) {
+      return;
+    }
     try {
       const saved = await SaveDoorStyleOrder(nextStyles.map((style) => style.id));
       setStyles(saved || nextStyles);
@@ -198,6 +227,10 @@ export function CatalogView() {
   };
 
   const onRowDragStart = (event, style) => {
+    if (!requireCatalogAccess()) {
+      event.preventDefault();
+      return;
+    }
     const styleID = style.id;
     setDraggedStyleID(styleID);
     setDraggedFamily(getStyleFamily(style));
@@ -222,6 +255,10 @@ export function CatalogView() {
   };
 
   const onRowDrop = async (event, style) => {
+    if (!requireCatalogAccess()) {
+      event.preventDefault();
+      return;
+    }
     const styleID = style.id;
     event.preventDefault();
     const sourceID = event.dataTransfer.getData('text/plain') || draggedStyleID;
@@ -365,7 +402,7 @@ export function CatalogView() {
                                     return (
                                       <tr
                                         key={style.id}
-                                        draggable={!isLocked}
+                                        draggable={!isLocked && canManageCatalog}
                                         onDragStart={(event) => onRowDragStart(event, style)}
                                         onDragOver={(event) => onRowDragOver(event, style)}
                                         onDrop={(event) => void onRowDrop(event, style)}

@@ -6,6 +6,7 @@ import { Input } from '../ui/Input';
 import { Modal } from '../ui/Modal';
 import { useToast } from '../ui/Toast';
 import { useMeasurement } from '../ui/MeasurementProvider';
+import { useLicense } from '../ui/LicenseProvider';
 import { formatMeasurement } from '../../lib/measurements';
 import { formatLengthDisplay, formatLengthInput, parseLengthInput } from '../../lib/units';
 import { getStyleVariantLabel, groupStylesByFamily, styleMatchesOverlayType } from '../../lib/styleCatalog';
@@ -121,9 +122,20 @@ function QuickDoorDiagram({ report, measurementSystem }) {
   );
 }
 
-export function QuickDoorView({ isOpen, onClose }) {
+export function QuickDoorView({ isOpen, onClose, onRequireLicense }) {
   const { measurementSystem } = useMeasurement();
   const { showToast } = useToast();
+  const { can, capabilityKeys, getCapabilityMessage } = useLicense();
+  const canGenerate = can(capabilityKeys.generate);
+  const canPrint = can(capabilityKeys.print);
+  const requireCapability = (capability) => {
+    if (can(capability)) {
+      return true;
+    }
+    showToast(`${getCapabilityMessage(capability)} Opening License settings...`, 'error');
+    onRequireLicense?.();
+    return false;
+  };
   const [styles, setStyles] = useState([]);
   const [overlayCategories, setOverlayCategories] = useState([]);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
@@ -251,6 +263,9 @@ export function QuickDoorView({ isOpen, onClose }) {
   };
 
   const generate = async () => {
+    if (!requireCapability(capabilityKeys.generate)) {
+      return;
+    }
     const qty = Number.parseInt(draft.qty, 10);
     const opWidth = parseLengthInput(draft.opWidth, measurementSystem);
     const opHeight = parseLengthInput(draft.opHeight, measurementSystem);
@@ -346,6 +361,9 @@ export function QuickDoorView({ isOpen, onClose }) {
 
   const printSheet = async () => {
     if (!report) {
+      return;
+    }
+    if (!requireCapability(capabilityKeys.print)) {
       return;
     }
     await printQuickDoorSheet({ report, measurementSystem });

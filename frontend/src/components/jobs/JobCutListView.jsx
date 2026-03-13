@@ -8,6 +8,7 @@ import { Button } from "../ui/Button";
 import { Card, CardContent, CardHeader } from "../ui/Card";
 import { useMeasurement } from "../ui/MeasurementProvider";
 import { useToast } from "../ui/Toast";
+import { useLicense } from "../ui/LicenseProvider";
 
 function formatSlabUse(value) {
   return value === "drawer-front" ? "Drawer Front" : "Door";
@@ -49,7 +50,7 @@ function getCutPartDisplay(item) {
   return `${formatSlabUse(item.slabUse)}${suffix}`;
 }
 
-export function JobCutListView({ jobId, onBack }) {
+export function JobCutListView({ jobId, onBack, onRequireLicense }) {
   const { measurementSystem } = useMeasurement();
   const [job, setJob] = useState(null);
   const [doorStyles, setDoorStyles] = useState([]);
@@ -57,6 +58,17 @@ export function JobCutListView({ jobId, onBack }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingCutList, setIsLoadingCutList] = useState(false);
   const { showToast } = useToast();
+  const { can, capabilityKeys, getCapabilityMessage } = useLicense();
+  const canGenerate = can(capabilityKeys.generate);
+  const canPrint = can(capabilityKeys.print);
+  const requireCapability = (capability) => {
+    if (can(capability)) {
+      return true;
+    }
+    showToast(`${getCapabilityMessage(capability)} Opening License settings...`, "error");
+    onRequireLicense?.();
+    return false;
+  };
 
   const styleById = useMemo(() => {
     const map = new Map();
@@ -171,6 +183,10 @@ export function JobCutListView({ jobId, onBack }) {
   };
 
   const loadCutList = async () => {
+    if (!canGenerate) {
+      setCutList(null);
+      return;
+    }
     setIsLoadingCutList(true);
     try {
       const response = await GenerateCutList(jobId);
@@ -189,9 +205,15 @@ export function JobCutListView({ jobId, onBack }) {
       await loadCutList();
     };
     void run();
-  }, [jobId]);
+  }, [jobId, canGenerate]);
 
   const handlePrint = async () => {
+    if (!requireCapability(capabilityKeys.generate)) {
+      return;
+    }
+    if (!requireCapability(capabilityKeys.print)) {
+      return;
+    }
     const openingCount = Array.isArray(job?.doors)
       ? job.doors.reduce((sum, door) => {
           const qty = Number(door?.qty) || 0;
@@ -241,7 +263,7 @@ export function JobCutListView({ jobId, onBack }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => void handlePrint()}>
+          <Button onClick={() => void handlePrint()} disabled={isLoadingCutList}>
             <Printer size={16} className="mr-2" />
             Print
           </Button>
@@ -259,6 +281,8 @@ export function JobCutListView({ jobId, onBack }) {
         <CardContent className="space-y-6">
           {isLoadingCutList ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Generating cut list...</p>
+          ) : !canGenerate ? (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{getCapabilityMessage(capabilityKeys.generate)}</p>
           ) : !cutList || !cutList.items || cutList.items.length === 0 || printSections.length === 0 ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No cut list parts yet. Add doors and save to generate.</p>
           ) : (

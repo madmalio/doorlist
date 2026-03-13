@@ -3,6 +3,7 @@ import { AlertTriangle, Check, ChevronDown, ChevronRight, Copy, Database, DoorOp
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useTheme } from '../ui/ThemeProvider';
 import { useMeasurement } from '../ui/MeasurementProvider';
+import { useLicense } from '../ui/LicenseProvider';
 import { cn } from '../../lib/utils';
 import { ExportAllDataToFile, ExportCatalogDataToFile, ExportOverlayDataToFile, ExportWoodPresetsDataToFile, GetOverlayCategories, GetSettings, ImportAllData, ImportCatalogData, ImportOverlayData, ImportWoodPresetsData, SaveOverlayCategories, UpdateSettings, WipeAllData } from '../../../wailsjs/go/main/App';
 import { formatLengthInput, parseLengthInput } from '../../lib/units';
@@ -114,6 +115,17 @@ function categoryItemKey(categoryId, group, itemId) {
 export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0, onOpenWelcome, onMeasurementConfirmed, onOverlayDefaultsSaved }) {
   const { theme, setTheme } = useTheme();
   const { measurementSystem, setMeasurementSystem } = useMeasurement();
+  const {
+    state,
+    stateLabel,
+    daysLeftInGrace,
+    graceDays,
+    isDevToolsEnabled,
+    licenseStates,
+    setLicenseStateForTesting,
+    setGraceDaysForTesting,
+    touchValidation,
+  } = useLicense();
   const measurementPlaceholder = measurementSystem === 'metric' ? '13' : '1/2';
   const unitLabel = measurementSystem === 'metric' ? 'mm' : 'in';
   const [activeSection, setActiveSection] = useState(initialSection || 'theme');
@@ -155,6 +167,9 @@ export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0,
   const [draggedItem, setDraggedItem] = useState(null);
   const [dragOverItemKey, setDragOverItemKey] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [licenseEmail, setLicenseEmail] = useState('');
+  const [licenseKey, setLicenseKey] = useState('');
+  const [licenseGraceDaysInput, setLicenseGraceDaysInput] = useState(String(graceDays || 30));
   const catalogImportRef = useRef(null);
   const overlayImportRef = useRef(null);
   const backupImportRef = useRef(null);
@@ -163,6 +178,32 @@ export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0,
   const shouldCreateOverlayCategoryRef = useRef(false);
   const { showToast } = useToast();
   const isWipeConfirmed = wipeConfirmText.trim() === wipeConfirmPhrase;
+
+  const handleActivateLicense = () => {
+    if (!licenseEmail.trim() || !licenseKey.trim()) {
+      showToast('Email and license key are required', 'error');
+      return;
+    }
+    setLicenseStateForTesting(licenseStates.paidActive);
+    touchValidation();
+    showToast('License activated locally. Server validation comes in phase 2.', 'success');
+  };
+
+  const handleStartTrial = () => {
+    setLicenseStateForTesting(licenseStates.trialActive);
+    touchValidation();
+    showToast('Trial activated locally', 'success');
+  };
+
+  const handleSaveGraceDays = () => {
+    const parsed = parseInt(licenseGraceDaysInput, 10);
+    if (!Number.isFinite(parsed) || parsed < 1 || parsed > 365) {
+      showToast('Grace days must be between 1 and 365', 'error');
+      return;
+    }
+    setGraceDaysForTesting(parsed);
+    showToast('Offline grace days updated', 'success');
+  };
 
   const requestMeasurementSystemChange = (nextSystem) => {
     if (!nextSystem) {
@@ -213,6 +254,10 @@ export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0,
       setActiveSection(initialSection);
     }
   }, [initialSection]);
+
+  useEffect(() => {
+    setLicenseGraceDaysInput(String(graceDays || 30));
+  }, [graceDays]);
 
   useEffect(() => {
     if (overlaySetupIntent <= 0) {
@@ -1202,6 +1247,19 @@ export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0,
             </button>
             <button
               type="button"
+              onClick={() => setActiveSection('license')}
+              className={cn(
+                'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+                activeSection === 'license'
+                  ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800',
+              )}
+            >
+              <Check size={16} />
+              License
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveSection('overlay-presets')}
               className={cn(
                 'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
@@ -1244,7 +1302,7 @@ export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0,
 
         <Card>
           <CardHeader>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'data' ? 'Data Management' : activeSection === 'wood-presets' ? 'Wood Presets' : 'Overlay Presets'}</h3>
+            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100">{activeSection === 'theme' ? 'Theme' : activeSection === 'license' ? 'License' : activeSection === 'data' ? 'Data Management' : activeSection === 'wood-presets' ? 'Wood Presets' : 'Overlay Presets'}</h3>
           </CardHeader>
           <CardContent className="space-y-4">
             {activeSection === 'theme' ? (
@@ -1316,6 +1374,75 @@ export function SettingsView({ initialSection = 'theme', overlaySetupIntent = 0,
                   </div>
                 </div>
               </>
+            ) : activeSection === 'license' ? (
+              <div className="space-y-4">
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">License Status</h4>
+                  <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+                    Current state: <span className="font-semibold">{stateLabel}</span>
+                    {state === licenseStates.graceOffline && daysLeftInGrace !== null ? ` · ${daysLeftInGrace} day${daysLeftInGrace === 1 ? '' : 's'} left in offline grace` : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Activation is managed here. Server-backed license validation arrives in phase 2.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                  <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Activate License</h4>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Input
+                      label="Email"
+                      value={licenseEmail}
+                      onChange={(event) => setLicenseEmail(event.target.value)}
+                      placeholder="you@shop.com"
+                    />
+                    <Input
+                      label="License Key"
+                      value={licenseKey}
+                      onChange={(event) => setLicenseKey(event.target.value)}
+                      placeholder="CUTLOGIC-XXXX-XXXX"
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button onClick={handleActivateLicense}>Activate License</Button>
+                    <Button variant="secondary" onClick={handleStartTrial}>Start Trial</Button>
+                  </div>
+                </div>
+
+                {isDevToolsEnabled ? (
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/40">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Developer License Controls</h4>
+                    <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Visible only in development for testing restrictions.</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">State</label>
+                        <select
+                          value={state}
+                          onChange={(event) => setLicenseStateForTesting(event.target.value)}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                        >
+                          <option value={licenseStates.trialActive}>Trial</option>
+                          <option value={licenseStates.paidActive}>Paid</option>
+                          <option value={licenseStates.graceOffline}>Grace Offline</option>
+                          <option value={licenseStates.expiredTrial}>Expired Trial</option>
+                          <option value={licenseStates.pastDue}>Past Due</option>
+                          <option value={licenseStates.revokedRefund}>Refunded</option>
+                        </select>
+                      </div>
+                      <Input
+                        label="Offline Grace Days"
+                        value={licenseGraceDaysInput}
+                        onChange={(event) => setLicenseGraceDaysInput(event.target.value.replace(/[^0-9]/g, ''))}
+                        inputMode="numeric"
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button variant="secondary" onClick={handleSaveGraceDays}>Save Grace Days</Button>
+                      <Button variant="secondary" onClick={touchValidation}>Mark Validated</Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             ) : activeSection === 'wood-presets' ? (
               <div className="space-y-4">
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">Manage wood choices available when creating jobs.</p>

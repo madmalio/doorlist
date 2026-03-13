@@ -21,6 +21,7 @@ import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 import { useMeasurement } from "../ui/MeasurementProvider";
+import { useLicense } from "../ui/LicenseProvider";
 import {
   findStyleById,
   getStyleDisplayName,
@@ -837,7 +838,7 @@ function renderDoorSettings(
   );
 }
 
-export function JobDetailView({ jobId, onBack, onOpenCutList }) {
+export function JobDetailView({ jobId, onBack, onOpenCutList, onRequireLicense }) {
   const { measurementSystem } = useMeasurement();
   const unitLabel = measurementSystem === "metric" ? "mm" : "in";
   const [job, setJob] = useState(null);
@@ -851,6 +852,18 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const { showToast } = useToast();
+  const { can, capabilityKeys, getCapabilityMessage } = useLicense();
+  const canEditData = can(capabilityKeys.editData);
+  const canGenerate = can(capabilityKeys.generate);
+  const canPrint = can(capabilityKeys.print);
+  const requireCapability = (capability) => {
+    if (can(capability)) {
+      return true;
+    }
+    showToast(`${getCapabilityMessage(capability)} Opening License settings...`, "error");
+    onRequireLicense?.();
+    return false;
+  };
 
   const styleFamilies = useMemo(
     () => groupStylesByFamily(doorStyles || []),
@@ -939,6 +952,9 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
   };
 
   const addDoorFromDraft = async () => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     const parsed = parseDoorRow(draftRow, measurementSystem);
     if (parsed.error) {
       showToast(parsed.error, "error");
@@ -955,11 +971,17 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
   };
 
   const removeRow = async (id) => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     const nextRows = rows.filter((row) => row.id !== id);
     await saveDoors(nextRows, { successMessage: "Door removed" });
   };
 
   const openEditModal = (row) => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     setEditRow({ ...row });
     setIsEditModalOpen(true);
   };
@@ -989,6 +1011,9 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
   }, [styleFamilies, styleByID]);
 
   const saveEditedDoor = async () => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     if (!editRow) {
       return;
     }
@@ -1006,6 +1031,9 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
     rowsToSave = rows,
     { silentSuccess = false, successMessage = "Doors saved" } = {},
   ) => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return false;
+    }
     if (!job) {
       return false;
     }
@@ -1043,6 +1071,12 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
 
   const handlePrintRow = async (row) => {
     if (!job || !row?.id || isPrintingRowId) {
+      return;
+    }
+    if (!requireCapability(capabilityKeys.generate)) {
+      return;
+    }
+    if (!requireCapability(capabilityKeys.print)) {
       return;
     }
 
@@ -1156,7 +1190,12 @@ export function JobDetailView({ jobId, onBack, onOpenCutList }) {
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
-            onClick={() => onOpenCutList?.(job.id)}
+            onClick={() => {
+              if (!requireCapability(capabilityKeys.generate)) {
+                return;
+              }
+              onOpenCutList?.(job.id);
+            }}
           >
             Cut List
           </Button>

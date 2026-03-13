@@ -19,6 +19,7 @@ import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { useToast } from "../ui/Toast";
 import { useMeasurement } from "../ui/MeasurementProvider";
+import { useLicense } from "../ui/LicenseProvider";
 import { printCutList } from "../../lib/cutListPrint";
 import { JobForm } from "./JobForm";
 
@@ -56,7 +57,7 @@ function getJobStatus(job) {
   );
 }
 
-export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onOpenOverlayPresets, openCreateIntent = 0 }) {
+export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onOpenOverlayPresets, onRequireLicense, openCreateIntent = 0 }) {
   const lastHandledCreateIntentRef = useRef(0);
   const { measurementSystem } = useMeasurement();
   const [jobs, setJobs] = useState([]);
@@ -79,6 +80,17 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
   const [doorStylesLoaded, setDoorStylesLoaded] = useState(false);
   const [pendingCreateFromIntent, setPendingCreateFromIntent] = useState(false);
   const { showToast } = useToast();
+  const { can, capabilityKeys, getCapabilityMessage } = useLicense();
+  const canEditData = can(capabilityKeys.editData);
+  const canPrint = can(capabilityKeys.print);
+  const requireCapability = (capability) => {
+    if (can(capability)) {
+      return true;
+    }
+    showToast(`${getCapabilityMessage(capability)} Opening License settings...`, "error");
+    onRequireLicense?.();
+    return false;
+  };
   const styleNameById = useMemo(() => {
     const map = new Map();
     (doorStyles || []).forEach((style) => {
@@ -197,6 +209,11 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
       return;
     }
 
+    if (!requireCapability(capabilityKeys.editData)) {
+      setPendingCreateFromIntent(false);
+      return;
+    }
+
     if (doorStyles.length === 0) {
       showToast("Create a catalog door style first", "error");
     } else {
@@ -205,9 +222,12 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
     }
 
     setPendingCreateFromIntent(false);
-  }, [pendingCreateFromIntent, doorStylesLoaded, doorStyles, showToast]);
+  }, [pendingCreateFromIntent, doorStylesLoaded, doorStyles, capabilityKeys.editData]);
 
   const openCreate = () => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     if (doorStyles.length === 0) {
       showToast("Create a catalog door style first", "error");
       return;
@@ -232,6 +252,9 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
   };
 
   const handleSubmit = async (payload) => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     try {
       if (editingJob) {
         await UpdateJob(editingJob.id, payload);
@@ -264,6 +287,9 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
   };
 
   const handleDelete = async () => {
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
     if (!jobToDelete) {
       return;
     }
@@ -328,6 +354,9 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
     if (!job?.id || isPrintingJobId) {
       return;
     }
+    if (!requireCapability(capabilityKeys.print)) {
+      return;
+    }
 
     setIsPrintingJobId(job.id);
     try {
@@ -362,6 +391,9 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
     if (!job?.id || isUpdatingStatusJobId) {
       return;
     }
+    if (!requireCapability(capabilityKeys.editData)) {
+      return;
+    }
 
     const currentStatus = String(job.productionStatus || "draft").toLowerCase();
     if (currentStatus === nextStatus) {
@@ -393,6 +425,9 @@ export function JobsView({ searchRequest, onSearchRequestHandled, onOpenJob, onO
 
   const handleArchiveToggle = async (job, archived) => {
     if (!job?.id || isUpdatingStatusJobId) {
+      return;
+    }
+    if (!requireCapability(capabilityKeys.editData)) {
       return;
     }
 

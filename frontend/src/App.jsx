@@ -164,12 +164,20 @@ function App() {
     setIsWelcomeOpen(true);
   };
 
+  const handleRequireLicense = () => {
+    setIsQuickDoorOpen(false);
+    setSettingsInitialSection('license');
+    setActiveView('settings');
+    setSelectedJobId(null);
+  };
+
   const renderView = () => {
     if (activeView === 'job-detail' && selectedJobId) {
       return (
         <JobDetailView
           jobId={selectedJobId}
           onBack={() => handleViewChange('jobs')}
+          onRequireLicense={handleRequireLicense}
           onOpenCutList={(targetJobId) => {
             setSelectedJobId(targetJobId);
             setActiveView('job-cutlist');
@@ -183,6 +191,7 @@ function App() {
         <JobCutListView
           jobId={selectedJobId}
           onBack={() => setActiveView('job-detail')}
+          onRequireLicense={handleRequireLicense}
         />
       );
     }
@@ -194,6 +203,7 @@ function App() {
           onSearchRequestHandled={() => setJobSearchRequest(null)}
           openCreateIntent={createJobIntent}
           onOpenOverlayPresets={handleOpenOverlayPresets}
+          onRequireLicense={handleRequireLicense}
           onOpenJob={(jobId) => {
             setSelectedJobId(jobId);
             setActiveView('job-detail');
@@ -225,7 +235,7 @@ function App() {
     }
 
     if (activeView === 'catalog') {
-      return <CatalogView />;
+      return <CatalogView onRequireLicense={handleRequireLicense} />;
     }
 
     return null;
@@ -272,7 +282,7 @@ function App() {
           }}
         />
         <main className="flex-1 overflow-auto p-6">{renderView()}</main>
-        <QuickDoorView isOpen={isQuickDoorOpen} onClose={() => setIsQuickDoorOpen(false)} />
+        <QuickDoorView isOpen={isQuickDoorOpen} onClose={() => setIsQuickDoorOpen(false)} onRequireLicense={handleRequireLicense} />
         <WelcomeModal
           isOpen={isWelcomeOpen}
           onClose={() => void handleDismissWelcome()}
